@@ -114,25 +114,25 @@ type (
 	}
 
 	LandingPageBlockItem struct {
-		Subject string
-		Body,
+		Subject,
+		Body string
 		Photo,
 		LinkText,
-		LinkURL string
+		LinkURL *string
 	}
 
 	LandingPageBlockItemData struct {
-		Subject string `json:"title"`
-		Body    string `json:"content"`
-		Photo   string `json:"img"`
+		Subject string  `json:"title"`
+		Body    string  `json:"content"`
+		Photo   *string `json:"img"`
 	}
 
 	LandingPageBlockItemHero struct {
-		Subject  string `json:"heading"`
-		Body     string `json:"content"`
-		LinkURL  string `json:"buttonLink"`
-		LinkText string `json:"buttonText"`
-		Photo    string `json:"img"`
+		Subject  string  `json:"heading"`
+		Body     string  `json:"content"`
+		LinkURL  *string `json:"buttonLink"`
+		LinkText *string `json:"buttonText"`
+		Photo    *string `json:"img"`
 	}
 )
 
@@ -898,9 +898,9 @@ func main() {
 		for j, landingPageBlockItem := range landingPageBlock.Items {
 			if _, err = tx.Exec(
 				ctx,
-				`INSERT INTO landing_page_blocks (
+				`INSERT INTO landing_page_block_items (
 					record_status
-					, parent_name
+					, landing_page_block_name
 					, subject
 					, body
 					, link_text
