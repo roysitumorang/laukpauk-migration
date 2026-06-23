@@ -2650,7 +2650,10 @@ func main() {
 			, COALESCE(idPromo, 0)
 			, diskonPromo
 			, idProduk
-			, jenisProduk
+			, CASE jenisProduk
+				WHEN 'nonpaket' THEN 'non bundled'
+				WHEN 'paket' THEN 'bundled'
+			END
 			, idSatuan
 			, harga
 			, diskon
