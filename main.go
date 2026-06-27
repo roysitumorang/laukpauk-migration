@@ -325,11 +325,11 @@ type (
 		BuyerID       uuid.UUID
 		OldBuyerID    int64
 		TransactionNo string
-		DownPayment   int64
+		PaymentAmount int64
 		VoucherID     *uuid.UUID
 		OldVoucherID  int64
 		VoucherType   *string
-		VoucherAmount *int64
+		VoucherAmount int64
 		RecipientName,
 		RecipientMobilePhone,
 		BuyerNote string
@@ -2405,7 +2405,7 @@ func main() {
 			, bayar
 			, idVoucher
 			, jenisVoucher
-			, nilaiVoucher
+			, COALESCE(nilaiVoucher, 0)
 			, namaPenerima
 			, noHPPenerima
 			, catatan
@@ -2464,7 +2464,7 @@ func main() {
 			&transaction.OldID,
 			&transaction.OldBuyerID,
 			&transaction.TransactionNo,
-			&transaction.DownPayment,
+			&transaction.PaymentAmount,
 			&transaction.OldVoucherID,
 			&transaction.VoucherType,
 			&transaction.VoucherAmount,
@@ -2548,7 +2548,7 @@ func main() {
 			`INSERT INTO transactions (
 				buyer_id
 				, transaction_no
-				, down_payment
+				, payment_amount
 				, voucher_id
 				, voucher_type
 				, voucher_amount
@@ -2593,7 +2593,7 @@ func main() {
 			RETURNING id`,
 			transaction.BuyerID,
 			transaction.TransactionNo,
-			transaction.DownPayment,
+			transaction.PaymentAmount,
 			transaction.VoucherID,
 			transaction.VoucherType,
 			transaction.VoucherAmount,
@@ -2624,7 +2624,7 @@ func main() {
 			transaction.ShippingTimeline,
 			transaction.RefundedShippingCost,
 			transaction.RefundedTransactionCost,
-			transaction.UniqueCode,
+			strconv.FormatInt(transaction.UniqueCode, 10),
 			transaction.MinimumPoint,
 			transaction.PointDeduction,
 			transaction.ProductCategoryDiscountAmount,
