@@ -139,11 +139,12 @@ type (
 		ID    uuid.UUID
 		OldID int64
 		Name,
+		Description,
 		Photo string
 		OldCreatedBy,
 		OldUpdatedBy int64
 		CreatedBy,
-		UpdatedBy *uuid.UUID
+		UpdatedBy uuid.UUID
 		CreatedAt,
 		UpdatedAt time.Time
 	}
@@ -293,6 +294,7 @@ func main() {
 		}
 		admins = append(admins, admin)
 	}
+	var adminID uuid.UUID
 	mapAdminIDs := map[int64]uuid.UUID{}
 	for i, admin := range admins {
 		if admin.OldCreatedBy != nil {
@@ -360,6 +362,7 @@ func main() {
 			return
 		}
 		admins[i] = admin
+		adminID = admin.ID
 	}
 	// buyers
 	rows, err = mysql.QueryContext(
@@ -954,6 +957,7 @@ func main() {
 		`SELECT
 			id
 			, nama
+			, keterangan
 			, gambar
 			, createdBy
 			, createdAt
@@ -979,6 +983,7 @@ func main() {
 		if err = rows.Scan(
 			&productCategory.OldID,
 			&productCategory.Name,
+			&productCategory.Description,
 			&productCategory.Photo,
 			&productCategory.OldCreatedBy,
 			&productCategory.CreatedAt,
@@ -991,12 +996,16 @@ func main() {
 			Log(slog.LevelError, err.Error())
 			return
 		}
-		if createdBy, ok := mapAdminIDs[productCategory.OldCreatedBy]; ok {
-			productCategory.CreatedBy = &createdBy
+		createdBy, ok := mapAdminIDs[productCategory.OldCreatedBy]
+		if !ok {
+			createdBy = adminID
 		}
-		if updatedBy, ok := mapAdminIDs[productCategory.OldUpdatedBy]; ok {
-			productCategory.UpdatedBy = &updatedBy
+		productCategory.CreatedBy = createdBy
+		updatedBy, ok := mapAdminIDs[productCategory.OldUpdatedBy]
+		if !ok {
+			updatedBy = adminID
 		}
+		productCategory.UpdatedBy = updatedBy
 		productCategories = append(productCategories, productCategory)
 	}
 	for i, productCategory := range productCategories {
@@ -1005,15 +1014,17 @@ func main() {
 			`INSERT INTO product_categories (
 				record_status
 				, name
+				, description
 				, photo
 				, created_by
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			RETURNING id`,
 			1,
 			productCategory.Name,
+			productCategory.Description,
 			productCategory.Photo,
 			productCategory.CreatedBy,
 			productCategory.CreatedAt,
