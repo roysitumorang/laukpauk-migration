@@ -24,6 +24,8 @@ import (
 )
 
 const (
+	RecordStatusActive int = iota
+
 	numbers             = "0123456789"
 	lowerCasedAlphabets = "123456789abcdefghijkmnopqrstuvwxyz"
 )
@@ -653,7 +655,7 @@ func main() {
 				, updated_at
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 			RETURNING id`,
-			1,
+			RecordStatusActive,
 			article.Subject,
 			article.Body,
 			article.Photo,
@@ -741,7 +743,7 @@ func main() {
 				, updated_at
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 			RETURNING id`,
-			1,
+			RecordStatusActive,
 			blog.Subject,
 			blog.Body,
 			blog.Slug,
@@ -899,7 +901,7 @@ func main() {
 				, updated_at
 			) VALUES ($1, $2, $3, $4, $5, $6, $7)
 			RETURNING id`,
-			1,
+			RecordStatusActive,
 			block.Name,
 			block.CustomAttributes,
 			block.CreatedBy,
@@ -929,7 +931,7 @@ func main() {
 					, updated_by
 					, updated_at
 				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-				1,
+				RecordStatusActive,
 				block.Name,
 				blockItem.Subject,
 				blockItem.Body,
@@ -1022,7 +1024,7 @@ func main() {
 				, updated_at
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			RETURNING id`,
-			1,
+			RecordStatusActive,
 			productCategory.Name,
 			productCategory.Description,
 			productCategory.Photo,
