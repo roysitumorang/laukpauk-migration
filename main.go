@@ -169,6 +169,27 @@ type (
 		CreatedAt,
 		UpdatedAt time.Time
 	}
+
+	ProductVariant struct {
+		ID                      uuid.UUID
+		OldID                   int64
+		ProductID               uuid.UUID
+		OldProductID            int64
+		MeasureUnit             string
+		Price                   int64
+		PriceType               int
+		PriceVariantPercentage  float64
+		DiscountType            int
+		DiscountRate            int64
+		DiscountMinimumQuantity int64
+		Description             string
+		OldCreatedBy,
+		OldUpdatedBy int64
+		CreatedBy,
+		UpdatedBy uuid.UUID
+		CreatedAt,
+		UpdatedAt time.Time
+	}
 )
 
 func main() {
@@ -1077,7 +1098,8 @@ func main() {
 	rows, err = mysql.QueryContext(
 		ctx,
 		`SELECT
-			a.foto
+			a.id
+			, a.foto
 			, a.nama
 			, a.idKategoriProduk
 			, CASE a.stokAvailable WHEN 1 THEN 0 ELSE 1 END
@@ -1111,6 +1133,7 @@ func main() {
 	for rows.Next() {
 		var product Product
 		if err = rows.Scan(
+			&product.OldID,
 			&product.Photo,
 			&product.Name,
 			&product.OldProductCategoryID,
@@ -1149,6 +1172,26 @@ func main() {
 		products = append(products, product)
 		mapProductNames[productName] = struct{}{}
 	}
+	sb.Reset()
+	_, _ = sb.WriteString(
+		`SELECT
+			a.idProduk
+			, a.nama
+			, a.harga
+			, a.diskon
+			, CASE a.jenisHarga WHEN 'pas' THEN 0 ELSE 1 END
+			, COALESCE(a.persentaseHargaVariasi, 100)
+			, a.keterangan
+			, b.createdBy
+			, b.createdAt
+			, b.updatedBy
+			, b.updatedAt
+		FROM produk_harga a
+		JOIN produk b ON a.idProduk = b.id
+		WHERE a.idProduk IN (`,
+	)
+	mapProductIDs := map[int64]uuid.UUID{}
+	var params []any
 	for i, product := range products {
 		if err = tx.QueryRow(
 			ctx,
@@ -1187,6 +1230,120 @@ func main() {
 			return
 		}
 		products[i] = product
+		mapProductIDs[product.OldID] = product.ID
+		params = append(params, product.OldID)
+		if len(params) > 1 {
+			_, _ = sb.WriteString(",")
+		}
+		_, _ = sb.WriteString("?")
+	}
+	_, _ = sb.WriteString(") ORDER BY a.id")
+	// product_variants
+	rows, err = mysql.QueryContext(
+		ctx,
+		sb.String(),
+		params...,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		if errRollback := tx.Rollback(ctx); errRollback != nil {
+			Log(slog.LevelError, errRollback.Error())
+		}
+		Log(slog.LevelError, err.Error())
+		return
+	}
+	defer rows.Close()
+	var productVariants []ProductVariant
+	mapProductVariantMeasureUnits := map[uuid.UUID]map[string]struct{}{}
+	for rows.Next() {
+		var productVariant ProductVariant
+		if err = rows.Scan(
+			&productVariant.OldProductID,
+			&productVariant.MeasureUnit,
+			&productVariant.Price,
+			&productVariant.DiscountRate,
+			&productVariant.PriceType,
+			&productVariant.PriceVariantPercentage,
+			&productVariant.Description,
+			&productVariant.OldCreatedBy,
+			&productVariant.CreatedAt,
+			&productVariant.OldUpdatedBy,
+			&productVariant.UpdatedAt,
+		); err != nil {
+			if errRollback := tx.Rollback(ctx); errRollback != nil {
+				Log(slog.LevelError, errRollback.Error())
+			}
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		productID, ok := mapProductIDs[productVariant.OldProductID]
+		if !ok {
+			continue
+		}
+		if _, ok := mapProductVariantMeasureUnits[productID][productVariant.MeasureUnit]; ok {
+			continue
+		}
+		productVariant.ProductID = productID
+		createdBy, ok := mapAdminIDs[productVariant.OldCreatedBy]
+		if !ok {
+			createdBy = adminID
+		}
+		productVariant.CreatedBy = createdBy
+		updatedBy, ok := mapAdminIDs[productVariant.OldUpdatedBy]
+		if !ok {
+			updatedBy = adminID
+		}
+		productVariant.UpdatedBy = updatedBy
+		productVariants = append(productVariants, productVariant)
+		if _, ok := mapProductVariantMeasureUnits[productID]; !ok {
+			mapProductVariantMeasureUnits[productID] = map[string]struct{}{}
+		}
+		mapProductVariantMeasureUnits[productID][productVariant.MeasureUnit] = struct{}{}
+	}
+	for i, productVariant := range productVariants {
+		if err = tx.QueryRow(
+			ctx,
+			`INSERT INTO product_variants (
+				record_status
+				, product_id
+				, measure_unit
+				, price
+				, price_type
+				, price_variant_percentage
+				, discount_type
+				, discount_rate
+				, discount_minimum_quantity
+				, description
+				, created_by
+				, created_at
+				, updated_by
+				, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			RETURNING id`,
+			RecordStatusActive,
+			productVariant.ProductID,
+			productVariant.MeasureUnit,
+			productVariant.Price,
+			productVariant.PriceType,
+			productVariant.PriceVariantPercentage,
+			productVariant.DiscountType,
+			productVariant.DiscountRate,
+			productVariant.DiscountMinimumQuantity,
+			productVariant.Description,
+			productVariant.CreatedBy,
+			productVariant.CreatedAt,
+			productVariant.UpdatedBy,
+			productVariant.UpdatedAt,
+		).Scan(&productVariant.ID); err != nil {
+			if errRollback := tx.Rollback(ctx); errRollback != nil {
+				Log(slog.LevelError, errRollback.Error())
+			}
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		productVariants[i] = productVariant
 	}
 	if err = tx.Commit(ctx); err != nil {
 		Log(slog.LevelError, err.Error())
