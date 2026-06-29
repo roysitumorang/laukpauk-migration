@@ -150,6 +150,25 @@ type (
 		CreatedAt,
 		UpdatedAt time.Time
 	}
+
+	Product struct {
+		ID                   uuid.UUID
+		OldID                int64
+		ProductCategoryID    uuid.UUID
+		OldProductCategoryID int64
+		ProductType          int
+		Name,
+		Photo,
+		Description string
+		StockStatus int
+		Pinned      bool
+		OldCreatedBy,
+		OldUpdatedBy int64
+		CreatedBy,
+		UpdatedBy uuid.UUID
+		CreatedAt,
+		UpdatedAt time.Time
+	}
 )
 
 func main() {
@@ -163,6 +182,7 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
+	now := time.Now()
 	regex := regexp.MustCompile(`[^A-Za-z0-9_.\-]`)
 	var sb strings.Builder
 	mysql, err := sql.Open("mysql", os.Getenv("MYSQL_DSN"))
@@ -1010,6 +1030,16 @@ func main() {
 		productCategory.UpdatedBy = updatedBy
 		productCategories = append(productCategories, productCategory)
 	}
+	productCategories = append(productCategories, ProductCategory{
+		Name:      "Lain-Lain",
+		Photo:     os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO"),
+		CreatedBy: adminID,
+		CreatedAt: now,
+		UpdatedBy: adminID,
+		UpdatedAt: now,
+	})
+	var defaultProductCategory ProductCategory
+	mapProductCategoryIDs := map[int64]uuid.UUID{}
 	for i, productCategory := range productCategories {
 		if err = tx.QueryRow(
 			ctx,
@@ -1040,6 +1070,123 @@ func main() {
 			return
 		}
 		productCategories[i] = productCategory
+		defaultProductCategory = productCategory
+		mapProductCategoryIDs[productCategory.OldID] = productCategory.ID
+	}
+	// products
+	rows, err = mysql.QueryContext(
+		ctx,
+		`SELECT
+			a.foto
+			, a.nama
+			, a.idKategoriProduk
+			, CASE a.stokAvailable WHEN 1 THEN 0 ELSE 1 END
+			, a.superior = 1
+			, a.createdBy
+			, a.createdAt
+			, a.updatedBy
+			, a.updatedAt
+		FROM produk a
+		WHERE EXISTS(
+			SELECT 1
+			FROM penjual b
+			WHERE b.id = a.idPenjual
+			AND b.namaToko = 'Laukpauk Inpres'
+		)
+		ORDER BY a.id`,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		if errRollback := tx.Rollback(ctx); errRollback != nil {
+			Log(slog.LevelError, errRollback.Error())
+		}
+		Log(slog.LevelError, err.Error())
+		return
+	}
+	defer rows.Close()
+	var products []Product
+	mapProductNames := map[string]struct{}{}
+	for rows.Next() {
+		var product Product
+		if err = rows.Scan(
+			&product.Photo,
+			&product.Name,
+			&product.OldProductCategoryID,
+			&product.StockStatus,
+			&product.Pinned,
+			&product.OldCreatedBy,
+			&product.CreatedAt,
+			&product.OldUpdatedBy,
+			&product.UpdatedAt,
+		); err != nil {
+			if errRollback := tx.Rollback(ctx); errRollback != nil {
+				Log(slog.LevelError, errRollback.Error())
+			}
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		productName := strings.ToLower(product.Name)
+		if _, ok := mapProductNames[productName]; ok {
+			continue
+		}
+		productCategoryID, ok := mapProductCategoryIDs[product.OldProductCategoryID]
+		if !ok {
+			productCategoryID = defaultProductCategory.ID
+		}
+		product.ProductCategoryID = productCategoryID
+		createdBy, ok := mapAdminIDs[product.OldCreatedBy]
+		if !ok {
+			createdBy = adminID
+		}
+		product.CreatedBy = createdBy
+		updatedBy, ok := mapAdminIDs[product.OldUpdatedBy]
+		if !ok {
+			updatedBy = adminID
+		}
+		product.UpdatedBy = updatedBy
+		products = append(products, product)
+		mapProductNames[productName] = struct{}{}
+	}
+	for i, product := range products {
+		if err = tx.QueryRow(
+			ctx,
+			`INSERT INTO products (
+				record_status
+				, product_category_id
+				, product_type
+				, name
+				, photo
+				, description
+				, stock_status
+				, pinned
+				, created_by
+				, created_at
+				, updated_by
+				, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			RETURNING id`,
+			RecordStatusActive,
+			product.ProductCategoryID,
+			product.ProductType,
+			product.Name,
+			product.Photo,
+			product.Description,
+			product.StockStatus,
+			product.Pinned,
+			product.CreatedBy,
+			product.CreatedAt,
+			product.UpdatedBy,
+			product.UpdatedAt,
+		).Scan(&product.ID); err != nil {
+			if errRollback := tx.Rollback(ctx); errRollback != nil {
+				Log(slog.LevelError, errRollback.Error())
+			}
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		products[i] = product
 	}
 	if err = tx.Commit(ctx); err != nil {
 		Log(slog.LevelError, err.Error())
