@@ -1076,6 +1076,7 @@ func main() {
 		UpdatedAt: now,
 	})
 	var defaultProductCategory ProductCategory
+	var bundledProductCategoryID uuid.UUID
 	mapProductCategoryIDs := map[int64]uuid.UUID{}
 	for i, productCategory := range productCategories {
 		if err = tx.QueryRow(
@@ -1109,8 +1110,11 @@ func main() {
 		productCategories[i] = productCategory
 		defaultProductCategory = productCategory
 		mapProductCategoryIDs[productCategory.OldID] = productCategory.ID
+		if productCategory.Name == "Paket" {
+			bundledProductCategoryID = productCategory.ID
+		}
 	}
-	// products
+	// standalone products
 	rows, err = mysql.QueryContext(
 		ctx,
 		`SELECT
@@ -1366,6 +1370,116 @@ func main() {
 			return
 		}
 		productVariants[i] = productVariant
+	}
+	// bundled products
+	rows, err = mysql.QueryContext(
+		ctx,
+		`SELECT
+			a.id
+			, a.foto
+			, a.nama
+			, a.harga
+			, CASE a.stockAvailable WHEN 1 THEN 0 ELSE 1 END
+			, a.superior = 1
+			, a.keterangan
+			, a.createdBy
+			, a.createdAt
+			, a.updatedBy
+			, a.updatedAt
+		FROM produk_paket a
+		ORDER BY a.id`,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		if errRollback := tx.Rollback(ctx); errRollback != nil {
+			Log(slog.LevelError, errRollback.Error())
+		}
+		Log(slog.LevelError, err.Error())
+		return
+	}
+	defer rows.Close()
+	products = []Product{}
+	for rows.Next() {
+		var product Product
+		if err = rows.Scan(
+			&product.OldID,
+			&product.Photo,
+			&product.Name,
+			&product.BasePrice,
+			&product.StockStatus,
+			&product.Pinned,
+			&product.Description,
+			&product.OldCreatedBy,
+			&product.CreatedAt,
+			&product.OldUpdatedBy,
+			&product.UpdatedAt,
+		); err != nil {
+			if errRollback := tx.Rollback(ctx); errRollback != nil {
+				Log(slog.LevelError, errRollback.Error())
+			}
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		productName := strings.ToLower(product.Name)
+		if _, ok := mapProductNames[productName]; ok {
+			continue
+		}
+		product.ProductCategoryID = bundledProductCategoryID
+		createdBy, ok := mapAdminIDs[product.OldCreatedBy]
+		if !ok {
+			createdBy = adminID
+		}
+		product.CreatedBy = createdBy
+		updatedBy, ok := mapAdminIDs[product.OldUpdatedBy]
+		if !ok {
+			updatedBy = adminID
+		}
+		product.UpdatedBy = updatedBy
+		products = append(products, product)
+		mapProductNames[productName] = struct{}{}
+	}
+	for i, product := range products {
+		if err = tx.QueryRow(
+			ctx,
+			`INSERT INTO products (
+				record_status
+				, product_category_id
+				, product_type
+				, name
+				, photo
+				, description
+				, stock_status
+				, pinned
+				, base_price
+				, created_by
+				, created_at
+				, updated_by
+				, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			RETURNING id`,
+			RecordStatusActive,
+			product.ProductCategoryID,
+			product.ProductType,
+			product.Name,
+			product.Photo,
+			product.Description,
+			product.StockStatus,
+			product.Pinned,
+			product.BasePrice,
+			product.CreatedBy,
+			product.CreatedAt,
+			product.UpdatedBy,
+			product.UpdatedAt,
+		).Scan(&product.ID); err != nil {
+			if errRollback := tx.Rollback(ctx); errRollback != nil {
+				Log(slog.LevelError, errRollback.Error())
+			}
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		products[i] = product
 	}
 	// settings
 	rows, err = mysql.QueryContext(
