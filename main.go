@@ -162,6 +162,7 @@ type (
 		Description string
 		StockStatus int
 		Pinned      bool
+		BasePrice   int64
 		OldCreatedBy,
 		OldUpdatedBy int64
 		CreatedBy,
@@ -182,6 +183,8 @@ type (
 		DiscountType            int
 		DiscountRate            int64
 		DiscountMinimumQuantity int64
+		DiscountAmount          int64
+		SalePrice               int64
 		Description             string
 		OldCreatedBy,
 		OldUpdatedBy int64
@@ -1204,11 +1207,12 @@ func main() {
 				, description
 				, stock_status
 				, pinned
+				, base_price
 				, created_by
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 			RETURNING id`,
 			RecordStatusActive,
 			product.ProductCategoryID,
@@ -1218,6 +1222,7 @@ func main() {
 			product.Description,
 			product.StockStatus,
 			product.Pinned,
+			product.BasePrice,
 			product.CreatedBy,
 			product.CreatedAt,
 			product.UpdatedBy,
@@ -1315,12 +1320,14 @@ func main() {
 				, discount_type
 				, discount_rate
 				, discount_minimum_quantity
+				, discount_amount
+				, sale_price
 				, description
 				, created_by
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 			RETURNING id`,
 			RecordStatusActive,
 			productVariant.ProductID,
@@ -1331,6 +1338,8 @@ func main() {
 			productVariant.DiscountType,
 			productVariant.DiscountRate,
 			productVariant.DiscountMinimumQuantity,
+			productVariant.DiscountAmount,
+			productVariant.SalePrice,
 			productVariant.Description,
 			productVariant.CreatedBy,
 			productVariant.CreatedAt,
