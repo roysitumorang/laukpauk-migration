@@ -1426,7 +1426,7 @@ func main() {
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO settings (
-				record_status
+				active
 				, key
 				, value
 				, description
@@ -1436,7 +1436,7 @@ func main() {
 				, updated_at
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			RETURNING id`,
-			RecordStatusActive,
+			true,
 			setting.Key,
 			setting.Value,
 			setting.Description,
