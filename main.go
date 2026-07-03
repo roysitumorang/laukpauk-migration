@@ -193,6 +193,19 @@ type (
 		CreatedAt,
 		UpdatedAt time.Time
 	}
+
+	Setting struct {
+		ID           uuid.UUID
+		Key          string
+		Value        string
+		Description  string
+		CreatedBy    uuid.UUID
+		OldCreatedBy int64
+		CreatedAt    time.Time
+		UpdatedBy    uuid.UUID
+		OldUpdatedBy int64
+		UpdatedAt    time.Time
+	}
 )
 
 func main() {
@@ -1353,6 +1366,92 @@ func main() {
 			return
 		}
 		productVariants[i] = productVariant
+	}
+	// settings
+	rows, err = mysql.QueryContext(
+		ctx,
+		`SELECT
+			kunci
+			, nilai
+			, keterangan
+			, createdBy
+			, createdAt
+			, updatedBy
+			, updatedAt
+		FROM pengaturan
+		ORDER BY createdAt`,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		if errRollback := tx.Rollback(ctx); errRollback != nil {
+			Log(slog.LevelError, errRollback.Error())
+		}
+		Log(slog.LevelError, err.Error())
+		return
+	}
+	defer rows.Close()
+	var settings []Setting
+	for rows.Next() {
+		var setting Setting
+		if err = rows.Scan(
+			&setting.Key,
+			&setting.Value,
+			&setting.Description,
+			&setting.OldCreatedBy,
+			&setting.CreatedAt,
+			&setting.OldUpdatedBy,
+			&setting.UpdatedAt,
+		); err != nil {
+			if errRollback := tx.Rollback(ctx); errRollback != nil {
+				Log(slog.LevelError, errRollback.Error())
+			}
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		settings = append(settings, setting)
+	}
+	for i, setting := range settings {
+		createdBy, ok := mapAdminIDs[setting.OldCreatedBy]
+		if !ok {
+			createdBy = adminID
+		}
+		setting.CreatedBy = createdBy
+		updatedBy, ok := mapAdminIDs[setting.OldUpdatedBy]
+		if !ok {
+			updatedBy = adminID
+		}
+		setting.UpdatedBy = updatedBy
+		if err = tx.QueryRow(
+			ctx,
+			`INSERT INTO settings (
+				record_status
+				, key
+				, value
+				, description
+				, created_by
+				, created_at
+				, updated_by
+				, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			RETURNING id`,
+			RecordStatusActive,
+			setting.Key,
+			setting.Value,
+			setting.Description,
+			setting.CreatedBy,
+			setting.CreatedAt,
+			setting.UpdatedBy,
+			setting.UpdatedAt,
+		).Scan(&setting.ID); err != nil {
+			if errRollback := tx.Rollback(ctx); errRollback != nil {
+				Log(slog.LevelError, errRollback.Error())
+			}
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		settings[i] = setting
 	}
 	if err = tx.Commit(ctx); err != nil {
 		Log(slog.LevelError, err.Error())
