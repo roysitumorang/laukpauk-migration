@@ -166,7 +166,8 @@ type (
 		Description string
 		StockStatus int
 		Pinned      bool
-		BasePrice   int64
+		BasePrice,
+		Discount int64
 		OldCreatedBy,
 		OldUpdatedBy int64
 		CreatedBy,
@@ -1379,19 +1380,20 @@ func main() {
 	rows, err = mysql.QueryContext(
 		ctx,
 		`SELECT
-			a.id
-			, a.foto
-			, a.nama
-			, a.harga
-			, CASE a.stockAvailable WHEN 1 THEN 0 ELSE 1 END
-			, a.superior = 1
-			, a.keterangan
-			, a.createdBy
-			, a.createdAt
-			, a.updatedBy
-			, a.updatedAt
-		FROM produk_paket a
-		ORDER BY a.id`,
+			id
+			, foto
+			, nama
+			, harga
+			, diskon
+			, CASE stockAvailable WHEN 1 THEN 0 ELSE 1 END
+			, superior = 1
+			, keterangan
+			, createdBy
+			, createdAt
+			, updatedBy
+			, updatedAt
+		FROM produk_paket
+		ORDER BY id`,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -1412,6 +1414,7 @@ func main() {
 			&product.Photo,
 			&product.Name,
 			&product.BasePrice,
+			&product.Discount,
 			&product.StockStatus,
 			&product.Pinned,
 			&product.Description,
@@ -1477,6 +1480,49 @@ func main() {
 			product.UpdatedBy,
 			product.UpdatedAt,
 		).Scan(&product.ID); err != nil {
+			if errRollback := tx.Rollback(ctx); errRollback != nil {
+				Log(slog.LevelError, errRollback.Error())
+			}
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		if _, err = tx.Exec(
+			ctx,
+			`INSERT INTO product_variants (
+				record_status
+				, product_id
+				, measure_unit
+				, price
+				, price_type
+				, price_variant_percentage
+				, discount_type
+				, discount_rate
+				, discount_minimum_quantity
+				, discount_amount
+				, sale_price
+				, description
+				, created_by
+				, created_at
+				, updated_by
+				, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+			RecordStatusActive,
+			product.ID,
+			"paket",
+			product.BasePrice,
+			0,
+			0,
+			0,
+			product.Discount,
+			0,
+			product.Discount,
+			product.BasePrice-product.Discount,
+			"",
+			product.CreatedBy,
+			product.CreatedAt,
+			product.UpdatedBy,
+			product.UpdatedAt,
+		); err != nil {
 			if errRollback := tx.Rollback(ctx); errRollback != nil {
 				Log(slog.LevelError, errRollback.Error())
 			}
