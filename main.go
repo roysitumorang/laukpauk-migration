@@ -34,6 +34,11 @@ const (
 	lowerCasedAlphabets = "123456789abcdefghijkmnopqrstuvwxyz"
 )
 
+const (
+	ProductTypeStandalone int = iota
+	ProductTypeBundled
+)
+
 type (
 	Admin struct {
 		ID    uuid.UUID
@@ -1175,6 +1180,7 @@ func main() {
 			Log(slog.LevelError, err.Error())
 			return
 		}
+		product.ProductType = ProductTypeStandalone
 		productName := strings.ToLower(product.Name)
 		if _, ok := mapProductNames[productName]; ok {
 			continue
@@ -1429,6 +1435,7 @@ func main() {
 			Log(slog.LevelError, err.Error())
 			return
 		}
+		product.ProductType = ProductTypeBundled
 		productName := strings.ToLower(product.Name)
 		if _, ok := mapProductNames[productName]; ok {
 			continue
