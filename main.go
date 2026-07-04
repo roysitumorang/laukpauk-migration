@@ -23,6 +23,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var (
+	sb strings.Builder
+)
+
 const (
 	RecordStatusActive int = iota
 
@@ -1586,10 +1590,12 @@ func Log(level slog.Level, msg string, args ...any) {
 		if fn := runtime.FuncForPC(pc); fn != nil {
 			name = fn.Name()
 		}
+		sb.Reset()
+		_, _ = fmt.Fprintf(&sb, "%s:%d", file, line)
 		args = append(
 			args,
 			"func", name,
-			"file", fmt.Sprintf("%s:%d", file, line),
+			"file", sb.String(),
 			"line", line,
 		)
 		slog.Error(msg, args...)
