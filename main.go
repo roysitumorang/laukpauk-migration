@@ -17,6 +17,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/goccy/go-json"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/nyaruka/phonenumbers"
@@ -28,12 +29,10 @@ var (
 )
 
 const (
-	RecordStatusActive int = iota
-
-	numbers             = "0123456789"
-	lowerCasedAlphabets = "123456789abcdefghijkmnopqrstuvwxyz"
+	RecordStatusActive  int = iota
+	numbers                 = "0123456789"
+	lowerCasedAlphabets     = "123456789abcdefghijkmnopqrstuvwxyz"
 )
-
 const (
 	ProductTypeStandalone int = iota
 	ProductTypeBundled
@@ -57,7 +56,6 @@ type (
 		CreatedAt,
 		UpdatedAt time.Time
 	}
-
 	Buyer struct {
 		ID    uuid.UUID
 		OldID int64
@@ -80,7 +78,6 @@ type (
 		CreatedAt,
 		UpdatedAt time.Time
 	}
-
 	Article struct {
 		ID    uuid.UUID
 		OldID int64
@@ -95,7 +92,6 @@ type (
 		CreatedAt,
 		UpdatedAt time.Time
 	}
-
 	Blog struct {
 		ID    uuid.UUID
 		OldID int64
@@ -110,7 +106,6 @@ type (
 		CreatedAt,
 		UpdatedAt time.Time
 	}
-
 	Block struct {
 		ID               uuid.UUID
 		Name             string
@@ -123,7 +118,6 @@ type (
 		UpdatedAt time.Time
 		Items []*BlockItem
 	}
-
 	BlockItem struct {
 		Subject,
 		Body string
@@ -131,13 +125,11 @@ type (
 		LinkText,
 		LinkURL *string
 	}
-
 	BlockItemData struct {
 		Subject string  `json:"title"`
 		Body    string  `json:"content"`
 		Photo   *string `json:"img"`
 	}
-
 	BlockItemHero struct {
 		Subject  string  `json:"heading"`
 		Body     string  `json:"content"`
@@ -145,7 +137,6 @@ type (
 		LinkText *string `json:"buttonText"`
 		Photo    *string `json:"img"`
 	}
-
 	ProductCategory struct {
 		ID    uuid.UUID
 		OldID int64
@@ -159,7 +150,6 @@ type (
 		CreatedAt,
 		UpdatedAt time.Time
 	}
-
 	Product struct {
 		ID                   uuid.UUID
 		OldID                int64
@@ -180,7 +170,6 @@ type (
 		CreatedAt,
 		UpdatedAt time.Time
 	}
-
 	ProductVariant struct {
 		ID                      uuid.UUID
 		OldID                   int64
@@ -203,7 +192,6 @@ type (
 		CreatedAt,
 		UpdatedAt time.Time
 	}
-
 	Setting struct {
 		ID           uuid.UUID
 		Key          string
@@ -261,6 +249,14 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
+	defer func(ctx context.Context) {
+		if err = tx.Rollback(ctx); errors.Is(err, pgx.ErrTxClosed) {
+			err = nil
+		}
+		if err != nil {
+			Log(slog.LevelError, err.Error())
+		}
+	}(ctx)
 	// admins
 	rows, err := mysql.QueryContext(
 		ctx,
@@ -283,9 +279,6 @@ func main() {
 		err = nil
 	}
 	if err != nil {
-		if errRollback := tx.Rollback(ctx); errRollback != nil {
-			Log(slog.LevelError, errRollback.Error())
-		}
 		Log(slog.LevelError, err.Error())
 		return
 	}
@@ -309,9 +302,6 @@ func main() {
 			&admin.OldUpdatedBy,
 			&admin.UpdatedAt,
 		); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -329,9 +319,6 @@ func main() {
 		}
 		mobilePhone, err := phonenumbers.Parse(admin.MobilePhone, "ID")
 		if err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -348,9 +335,6 @@ func main() {
 		}
 		hashByte, err := bcrypt.GenerateFromPassword(temporaryPassword, bcrypt.MinCost)
 		if err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -406,9 +390,6 @@ func main() {
 			admin.UpdatedBy,
 			admin.UpdatedAt,
 		).Scan(&admin.ID); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -424,9 +405,6 @@ func main() {
 			admin.Role,
 			admin.Photo,
 		); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -458,9 +436,6 @@ func main() {
 		err = nil
 	}
 	if err != nil {
-		if errRollback := tx.Rollback(ctx); errRollback != nil {
-			Log(slog.LevelError, errRollback.Error())
-		}
 		Log(slog.LevelError, err.Error())
 		return
 	}
@@ -485,9 +460,6 @@ func main() {
 			&buyer.OldUpdatedBy,
 			&buyer.UpdatedAt,
 		); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -519,9 +491,6 @@ func main() {
 		if buyer.MobilePhone != nil && *buyer.MobilePhone != "" {
 			mobilePhone, err := phonenumbers.Parse(*buyer.MobilePhone, "ID")
 			if err != nil {
-				if errRollback := tx.Rollback(ctx); errRollback != nil {
-					Log(slog.LevelError, errRollback.Error())
-				}
 				Log(slog.LevelError, err.Error(), "mobile_phone", buyer.MobilePhone)
 				return
 			}
@@ -557,9 +526,6 @@ func main() {
 		}
 		hashByte, err := bcrypt.GenerateFromPassword(temporaryPassword, bcrypt.MinCost)
 		if err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -622,9 +588,6 @@ func main() {
 			buyer.UpdatedBy,
 			buyer.UpdatedAt,
 		).Scan(&buyer.ID); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -644,9 +607,6 @@ func main() {
 			buyer.Address,
 			buyer.ReferencedBy,
 		); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -672,9 +632,6 @@ func main() {
 		err = nil
 	}
 	if err != nil {
-		if errRollback := tx.Rollback(ctx); errRollback != nil {
-			Log(slog.LevelError, errRollback.Error())
-		}
 		Log(slog.LevelError, err.Error())
 		return
 	}
@@ -693,9 +650,6 @@ func main() {
 			&article.OldUpdatedBy,
 			&article.UpdatedAt,
 		); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -732,9 +686,6 @@ func main() {
 			article.UpdatedBy,
 			article.UpdatedAt,
 		).Scan(&article.ID); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -760,9 +711,6 @@ func main() {
 		err = nil
 	}
 	if err != nil {
-		if errRollback := tx.Rollback(ctx); errRollback != nil {
-			Log(slog.LevelError, errRollback.Error())
-		}
 		Log(slog.LevelError, err.Error())
 		return
 	}
@@ -781,9 +729,6 @@ func main() {
 			&blog.OldUpdatedBy,
 			&blog.UpdatedAt,
 		); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -820,9 +765,6 @@ func main() {
 			blog.UpdatedBy,
 			blog.UpdatedAt,
 		).Scan(&blog.ID); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -847,9 +789,6 @@ func main() {
 		err = nil
 	}
 	if err != nil {
-		if errRollback := tx.Rollback(ctx); errRollback != nil {
-			Log(slog.LevelError, errRollback.Error())
-		}
 		Log(slog.LevelError, err.Error())
 		return
 	}
@@ -875,9 +814,6 @@ func main() {
 			&oldUpdatedBy,
 			&updatedAt,
 		); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -976,9 +912,6 @@ func main() {
 			block.UpdatedBy,
 			block.UpdatedAt,
 		).Scan(&block.ID); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -1010,9 +943,6 @@ func main() {
 				block.UpdatedBy,
 				block.UpdatedAt,
 			); err != nil {
-				if errRollback := tx.Rollback(ctx); errRollback != nil {
-					Log(slog.LevelError, errRollback.Error())
-				}
 				Log(slog.LevelError, err.Error())
 				return
 			}
@@ -1039,9 +969,6 @@ func main() {
 		err = nil
 	}
 	if err != nil {
-		if errRollback := tx.Rollback(ctx); errRollback != nil {
-			Log(slog.LevelError, errRollback.Error())
-		}
 		Log(slog.LevelError, err.Error())
 		return
 	}
@@ -1059,9 +986,6 @@ func main() {
 			&productCategory.OldUpdatedBy,
 			&productCategory.UpdatedAt,
 		); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -1111,9 +1035,6 @@ func main() {
 			productCategory.UpdatedBy,
 			productCategory.UpdatedAt,
 		).Scan(&productCategory.ID); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -1151,9 +1072,6 @@ func main() {
 		err = nil
 	}
 	if err != nil {
-		if errRollback := tx.Rollback(ctx); errRollback != nil {
-			Log(slog.LevelError, errRollback.Error())
-		}
 		Log(slog.LevelError, err.Error())
 		return
 	}
@@ -1174,9 +1092,6 @@ func main() {
 			&product.OldUpdatedBy,
 			&product.UpdatedAt,
 		); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -1256,9 +1171,6 @@ func main() {
 			product.UpdatedBy,
 			product.UpdatedAt,
 		).Scan(&product.ID); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -1281,9 +1193,6 @@ func main() {
 		err = nil
 	}
 	if err != nil {
-		if errRollback := tx.Rollback(ctx); errRollback != nil {
-			Log(slog.LevelError, errRollback.Error())
-		}
 		Log(slog.LevelError, err.Error())
 		return
 	}
@@ -1305,9 +1214,6 @@ func main() {
 			&productVariant.OldUpdatedBy,
 			&productVariant.UpdatedAt,
 		); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -1374,9 +1280,6 @@ func main() {
 			productVariant.UpdatedBy,
 			productVariant.UpdatedAt,
 		).Scan(&productVariant.ID); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -1405,9 +1308,6 @@ func main() {
 		err = nil
 	}
 	if err != nil {
-		if errRollback := tx.Rollback(ctx); errRollback != nil {
-			Log(slog.LevelError, errRollback.Error())
-		}
 		Log(slog.LevelError, err.Error())
 		return
 	}
@@ -1429,9 +1329,6 @@ func main() {
 			&product.OldUpdatedBy,
 			&product.UpdatedAt,
 		); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -1487,9 +1384,6 @@ func main() {
 			product.UpdatedBy,
 			product.UpdatedAt,
 		).Scan(&product.ID); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -1530,9 +1424,6 @@ func main() {
 			product.UpdatedBy,
 			product.UpdatedAt,
 		); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -1556,9 +1447,6 @@ func main() {
 		err = nil
 	}
 	if err != nil {
-		if errRollback := tx.Rollback(ctx); errRollback != nil {
-			Log(slog.LevelError, errRollback.Error())
-		}
 		Log(slog.LevelError, err.Error())
 		return
 	}
@@ -1575,9 +1463,6 @@ func main() {
 			&setting.OldUpdatedBy,
 			&setting.UpdatedAt,
 		); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -1616,9 +1501,6 @@ func main() {
 			setting.UpdatedBy,
 			setting.UpdatedAt,
 		).Scan(&setting.ID); err != nil {
-			if errRollback := tx.Rollback(ctx); errRollback != nil {
-				Log(slog.LevelError, errRollback.Error())
-			}
 			Log(slog.LevelError, err.Error())
 			return
 		}
