@@ -364,6 +364,7 @@ func main() {
 			ctx,
 			`INSERT INTO users (
 				user_type
+				, user_status
 				, name
 				, mobile_phone_confirmed_at
 				, mobile_phone
@@ -376,8 +377,9 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 			RETURNING id`,
+			0,
 			0,
 			admin.Name,
 			admin.UpdatedAt,
@@ -573,6 +575,7 @@ func main() {
 			ctx,
 			`INSERT INTO users (
 				user_type
+				, user_status
 				, name
 				, confirmation_token
 				, confirmed_at
@@ -584,9 +587,10 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 			RETURNING id`,
 			1,
+			0,
 			buyer.Name,
 			buyer.VerificationCode,
 			confirmedAt,
