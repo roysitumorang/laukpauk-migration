@@ -66,8 +66,8 @@ type (
 		Username,
 		Password string
 		MobilePhone      *string
-		OldReferencedBy  *int64
-		ReferencedBy     *uuid.UUID
+		OldReferrerID    *int64
+		ReferrerID       *uuid.UUID
 		VerificationCode *string
 		IsVerified       int
 		VerifiedAt       *time.Time
@@ -452,7 +452,7 @@ func main() {
 			&buyer.Address,
 			&buyer.MobilePhone,
 			&buyer.Username,
-			&buyer.OldReferencedBy,
+			&buyer.OldReferrerID,
 			&buyer.VerificationCode,
 			&buyer.IsVerified,
 			&buyer.OldCreatedBy,
@@ -508,8 +508,8 @@ func main() {
 		} else {
 			buyer.MobilePhone = nil
 		}
-		if buyer.OldReferencedBy != nil && *buyer.OldReferencedBy == 0 {
-			buyer.OldReferencedBy = nil
+		if buyer.OldReferrerID != nil && *buyer.OldReferrerID == 0 {
+			buyer.OldReferrerID = nil
 		}
 		if buyer.VerificationCode != nil {
 			if *buyer.VerificationCode == "" {
@@ -540,9 +540,9 @@ func main() {
 	}
 	mapBuyerIDs := map[int64]uuid.UUID{}
 	for i, buyer := range buyers {
-		if buyer.OldReferencedBy != nil {
-			if referencedBy, ok := mapBuyerIDs[*buyer.OldReferencedBy]; ok {
-				buyer.ReferencedBy = &referencedBy
+		if buyer.OldReferrerID != nil {
+			if referencedBy, ok := mapBuyerIDs[*buyer.OldReferrerID]; ok {
+				buyer.ReferrerID = &referencedBy
 			}
 		}
 		if buyer.OldCreatedBy != nil {
@@ -599,13 +599,13 @@ func main() {
 				, referral_code
 				, photo
 				, address
-				, referenced_by
+				, referrer_id
 			) VALUES ($1, $2, $3, $4, $5)`,
 			buyer.ID,
 			buyer.ReferralCode,
 			buyer.Photo,
 			buyer.Address,
-			buyer.ReferencedBy,
+			buyer.ReferrerID,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
 			return
