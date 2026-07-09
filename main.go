@@ -371,13 +371,14 @@ func main() {
 				, email_confirmed_at
 				, email
 				, encrypted_password
+				, photo
 				, created_by
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 			RETURNING id`,
-			"admin",
+			0,
 			admin.Name,
 			admin.UpdatedAt,
 			admin.MobilePhone,
@@ -385,6 +386,7 @@ func main() {
 			admin.UpdatedAt,
 			admin.Email,
 			admin.Password,
+			admin.Photo,
 			admin.CreatedBy,
 			admin.CreatedAt,
 			admin.UpdatedBy,
@@ -394,16 +396,23 @@ func main() {
 			return
 		}
 		mapAdminIDs[admin.OldID] = admin.ID
+		var adminType int
+		switch admin.Role {
+		case "superadmin":
+			adminType = 1
+		case "admin":
+			fallthrough
+		default:
+			adminType = 0
+		}
 		if _, err = tx.Exec(
 			ctx,
 			`INSERT INTO admins (
 				user_id
-				, admin_level
-				, photo
-			) VALUES ($1, $2, $3)`,
+				, admin_type
+			) VALUES ($1, $2)`,
 			admin.ID,
-			admin.Role,
-			admin.Photo,
+			adminType,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
 			return
@@ -570,19 +579,21 @@ func main() {
 				, mobile_phone
 				, username
 				, encrypted_password
+				, photo
 				, created_by
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			RETURNING id`,
-			"buyer",
+			1,
 			buyer.Name,
 			buyer.VerificationCode,
 			confirmedAt,
 			buyer.MobilePhone,
 			buyer.Username,
 			buyer.Password,
+			buyer.Photo,
 			buyer.CreatedBy,
 			buyer.CreatedAt,
 			buyer.UpdatedBy,
@@ -597,13 +608,11 @@ func main() {
 			`INSERT INTO buyers (
 				user_id
 				, referral_code
-				, photo
 				, address
 				, referrer_id
-			) VALUES ($1, $2, $3, $4, $5)`,
+			) VALUES ($1, $2, $3, $4)`,
 			buyer.ID,
 			buyer.ReferralCode,
-			buyer.Photo,
 			buyer.Address,
 			buyer.ReferrerID,
 		); err != nil {
