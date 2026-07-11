@@ -175,7 +175,7 @@ type (
 		OldID                   int64
 		ProductID               uuid.UUID
 		OldProductID            int64
-		MeasureUnit             string
+		StockUnit               string
 		Price                   int64
 		PriceType               int
 		PriceVariantPercentage  float64
@@ -1211,12 +1211,12 @@ func main() {
 	}
 	defer rows.Close()
 	var productVariants []ProductVariant
-	mapProductVariantMeasureUnits := map[uuid.UUID]map[string]struct{}{}
+	mapProductVariantStockUnits := map[uuid.UUID]map[string]struct{}{}
 	for rows.Next() {
 		var productVariant ProductVariant
 		if err = rows.Scan(
 			&productVariant.OldProductID,
-			&productVariant.MeasureUnit,
+			&productVariant.StockUnit,
 			&productVariant.Price,
 			&productVariant.DiscountRate,
 			&productVariant.PriceType,
@@ -1234,7 +1234,7 @@ func main() {
 		if !ok {
 			continue
 		}
-		if _, ok := mapProductVariantMeasureUnits[productID][productVariant.MeasureUnit]; ok {
+		if _, ok := mapProductVariantStockUnits[productID][productVariant.StockUnit]; ok {
 			continue
 		}
 		productVariant.ProductID = productID
@@ -1249,10 +1249,10 @@ func main() {
 		}
 		productVariant.UpdatedBy = updatedBy
 		productVariants = append(productVariants, productVariant)
-		if _, ok := mapProductVariantMeasureUnits[productID]; !ok {
-			mapProductVariantMeasureUnits[productID] = map[string]struct{}{}
+		if _, ok := mapProductVariantStockUnits[productID]; !ok {
+			mapProductVariantStockUnits[productID] = map[string]struct{}{}
 		}
-		mapProductVariantMeasureUnits[productID][productVariant.MeasureUnit] = struct{}{}
+		mapProductVariantStockUnits[productID][productVariant.StockUnit] = struct{}{}
 	}
 	for i, productVariant := range productVariants {
 		if err = tx.QueryRow(
@@ -1260,7 +1260,7 @@ func main() {
 			`INSERT INTO product_variants (
 				record_status
 				, product_id
-				, measure_unit
+				, stock_unit
 				, price
 				, price_type
 				, price_variant_percentage
@@ -1278,7 +1278,7 @@ func main() {
 			RETURNING id`,
 			RecordStatusActive,
 			productVariant.ProductID,
-			productVariant.MeasureUnit,
+			productVariant.StockUnit,
 			productVariant.Price,
 			productVariant.PriceType,
 			productVariant.PriceVariantPercentage,
@@ -1405,7 +1405,7 @@ func main() {
 			`INSERT INTO product_variants (
 				record_status
 				, product_id
-				, measure_unit
+				, stock_unit
 				, price
 				, price_type
 				, price_variant_percentage
