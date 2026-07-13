@@ -177,8 +177,6 @@ type (
 		OldProductID            int64
 		StockUnit               string
 		Price                   int64
-		PriceType               int
-		PriceVariantPercentage  float64
 		DiscountType            int
 		DiscountRate            int64
 		DiscountMinimumQuantity int64
@@ -1138,8 +1136,6 @@ func main() {
 			, a.nama
 			, a.harga
 			, a.diskon
-			, CASE a.jenisHarga WHEN 'pas' THEN 0 ELSE 1 END
-			, COALESCE(a.persentaseHargaVariasi, 100)
 			, a.keterangan
 			, b.createdBy
 			, b.createdAt
@@ -1163,12 +1159,11 @@ func main() {
 				, description
 				, stock_status
 				, pinned
-				, base_price
 				, created_by
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			RETURNING id`,
 			RecordStatusActive,
 			product.ProductCategoryID,
@@ -1178,7 +1173,6 @@ func main() {
 			product.Description,
 			product.StockStatus,
 			product.Pinned,
-			product.BasePrice,
 			product.CreatedBy,
 			product.CreatedAt,
 			product.UpdatedBy,
@@ -1219,8 +1213,6 @@ func main() {
 			&productVariant.StockUnit,
 			&productVariant.Price,
 			&productVariant.DiscountRate,
-			&productVariant.PriceType,
-			&productVariant.PriceVariantPercentage,
 			&productVariant.Description,
 			&productVariant.OldCreatedBy,
 			&productVariant.CreatedAt,
@@ -1262,8 +1254,6 @@ func main() {
 				, product_id
 				, stock_unit
 				, price
-				, price_type
-				, price_variant_percentage
 				, discount_type
 				, discount_rate
 				, discount_minimum_quantity
@@ -1274,14 +1264,12 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 			RETURNING id`,
 			RecordStatusActive,
 			productVariant.ProductID,
 			productVariant.StockUnit,
 			productVariant.Price,
-			productVariant.PriceType,
-			productVariant.PriceVariantPercentage,
 			productVariant.DiscountType,
 			productVariant.DiscountRate,
 			productVariant.DiscountMinimumQuantity,
@@ -1376,12 +1364,11 @@ func main() {
 				, description
 				, stock_status
 				, pinned
-				, base_price
 				, created_by
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			RETURNING id`,
 			RecordStatusActive,
 			product.ProductCategoryID,
@@ -1391,7 +1378,6 @@ func main() {
 			product.Description,
 			product.StockStatus,
 			product.Pinned,
-			product.BasePrice,
 			product.CreatedBy,
 			product.CreatedAt,
 			product.UpdatedBy,
@@ -1407,8 +1393,6 @@ func main() {
 				, product_id
 				, stock_unit
 				, price
-				, price_type
-				, price_variant_percentage
 				, discount_type
 				, discount_rate
 				, discount_minimum_quantity
@@ -1419,13 +1403,11 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
 			RecordStatusActive,
 			product.ID,
 			"paket",
 			product.BasePrice,
-			0,
-			0,
 			0,
 			product.Discount,
 			0,
