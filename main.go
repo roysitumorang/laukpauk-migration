@@ -1013,7 +1013,7 @@ func main() {
 		}
 		productCategory.UpdatedBy = updatedBy
 		if productCategory.Photo != os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO") {
-			if _, err = os.Stat(oldPhotoLocation(&sb, productCategory.Photo)); err != nil && errors.Is(err, os.ErrNotExist) {
+			if _, err = os.Stat(oldProductCategoryPhotoLocation(&sb, productCategory.Photo)); err != nil && errors.Is(err, os.ErrNotExist) {
 				productCategory.Photo = os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO")
 			}
 		}
@@ -1036,7 +1036,7 @@ func main() {
 			_, _ = fmt.Fprintf(&sb, "%s%s", uuid.New().String(), filepath.Ext(productCategory.Photo))
 			destination := sb.String()
 			if err = copyFile(
-				oldPhotoLocation(&sb, productCategory.Photo),
+				oldProductCategoryPhotoLocation(&sb, productCategory.Photo),
 				newPhotoLocation(&sb, destination),
 			); err != nil {
 				Log(slog.LevelError, err.Error())
@@ -1146,28 +1146,30 @@ func main() {
 			updatedBy = adminID
 		}
 		product.UpdatedBy = updatedBy
+		if product.Photo != os.Getenv("PRODUCT_DEFAULT_PHOTO") {
+			if _, err = os.Stat(oldProductPhotoLocation(&sb, product.Photo)); err != nil && errors.Is(err, os.ErrNotExist) {
+				product.Photo = os.Getenv("PRODUCT_DEFAULT_PHOTO")
+			}
+		}
 		products = append(products, product)
 		mapProductNames[productName] = struct{}{}
 	}
-	sb.Reset()
-	_, _ = sb.WriteString(
-		`SELECT
-			a.idProduk
-			, a.nama
-			, a.harga
-			, a.diskon
-			, a.keterangan
-			, b.createdBy
-			, b.createdAt
-			, b.updatedBy
-			, b.updatedAt
-		FROM produk_harga a
-		JOIN produk b ON a.idProduk = b.id
-		WHERE a.idProduk IN (`,
-	)
 	mapProductIDs := map[int64]uuid.UUID{}
 	var params []any
 	for i, product := range products {
+		if product.Photo != os.Getenv("PRODUCT_DEFAULT_PHOTO") {
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s%s", uuid.New().String(), filepath.Ext(product.Photo))
+			destination := sb.String()
+			if err = copyFile(
+				oldProductPhotoLocation(&sb, product.Photo),
+				newPhotoLocation(&sb, destination),
+			); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+			product.Photo = destination
+		}
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO products (
@@ -1204,7 +1206,25 @@ func main() {
 		products[i] = product
 		mapProductIDs[product.OldID] = product.ID
 		params = append(params, product.OldID)
-		if len(params) > 1 {
+	}
+	sb.Reset()
+	_, _ = sb.WriteString(
+		`SELECT
+			a.idProduk
+			, a.nama
+			, a.harga
+			, a.diskon
+			, a.keterangan
+			, b.createdBy
+			, b.createdAt
+			, b.updatedBy
+			, b.updatedAt
+		FROM produk_harga a
+		JOIN produk b ON a.idProduk = b.id
+		WHERE a.idProduk IN (`,
+	)
+	for i := range params {
+		if i > 0 {
 			_, _ = sb.WriteString(",")
 		}
 		_, _ = sb.WriteString("?")
@@ -1369,10 +1389,28 @@ func main() {
 			updatedBy = adminID
 		}
 		product.UpdatedBy = updatedBy
+		if product.Photo != os.Getenv("BUNDLE_DEFAULT_PHOTO") {
+			if _, err = os.Stat(oldProductPhotoLocation(&sb, product.Photo)); err != nil && errors.Is(err, os.ErrNotExist) {
+				product.Photo = os.Getenv("BUNDLE_DEFAULT_PHOTO")
+			}
+		}
 		products = append(products, product)
 		mapProductNames[productName] = struct{}{}
 	}
 	for i, product := range products {
+		if product.Photo != os.Getenv("BUNDLE_DEFAULT_PHOTO") {
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s%s", uuid.New().String(), filepath.Ext(product.Photo))
+			destination := sb.String()
+			if err = copyFile(
+				oldProductPhotoLocation(&sb, product.Photo),
+				newPhotoLocation(&sb, destination),
+			); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+			product.Photo = destination
+		}
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO products (
@@ -1705,9 +1743,15 @@ func copyFile(src, dst string) error {
 	return os.Chmod(dst, 0644)
 }
 
-func oldPhotoLocation(sb *strings.Builder, filename string) string {
+func oldProductCategoryPhotoLocation(sb *strings.Builder, filename string) string {
 	sb.Reset()
 	_, _ = fmt.Fprintf(sb, "%s/product_category/%s", os.Getenv("PHOTO_DIRECTORY"), filename)
+	return sb.String()
+}
+
+func oldProductPhotoLocation(sb *strings.Builder, filename string) string {
+	sb.Reset()
+	_, _ = fmt.Fprintf(sb, "%s/product/%s", os.Getenv("PHOTO_DIRECTORY"), filename)
 	return sb.String()
 }
 
