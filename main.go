@@ -1031,6 +1031,19 @@ func main() {
 	var bundledProductCategoryID uuid.UUID
 	mapProductCategoryIDs := map[int64]uuid.UUID{}
 	for i, productCategory := range productCategories {
+		if productCategory.Photo != os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO") {
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s%s", uuid.New().String(), filepath.Ext(productCategory.Photo))
+			destination := sb.String()
+			if err = copyFile(
+				oldPhotoLocation(&sb, productCategory.Photo),
+				newPhotoLocation(&sb, destination),
+			); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+			productCategory.Photo = destination
+		}
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO product_categories (
@@ -1061,19 +1074,6 @@ func main() {
 		mapProductCategoryIDs[productCategory.OldID] = productCategory.ID
 		if productCategory.Name == "Paket" {
 			bundledProductCategoryID = productCategory.ID
-		}
-		if productCategory.Photo == os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO") {
-			continue
-		}
-		sb.Reset()
-		_, _ = fmt.Fprintf(&sb, "%s%s", uuid.New().String(), filepath.Ext(productCategory.Photo))
-		destination := sb.String()
-		if err = copyFile(
-			oldPhotoLocation(&sb, productCategory.Photo),
-			newPhotoLocation(&sb, destination),
-		); err != nil {
-			Log(slog.LevelError, err.Error())
-			return
 		}
 	}
 	// standalone products
