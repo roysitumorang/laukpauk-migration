@@ -6,8 +6,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -1010,6 +1012,11 @@ func main() {
 			updatedBy = adminID
 		}
 		productCategory.UpdatedBy = updatedBy
+		if productCategory.Photo != os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO") {
+			if _, err = os.Stat(oldPhotoLocation(&sb, productCategory.Photo)); err != nil && errors.Is(err, os.ErrNotExist) {
+				productCategory.Photo = os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO")
+			}
+		}
 		productCategories = append(productCategories, productCategory)
 	}
 	productCategories = append(productCategories, ProductCategory{
@@ -1054,6 +1061,19 @@ func main() {
 		mapProductCategoryIDs[productCategory.OldID] = productCategory.ID
 		if productCategory.Name == "Paket" {
 			bundledProductCategoryID = productCategory.ID
+		}
+		if productCategory.Photo == os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO") {
+			continue
+		}
+		sb.Reset()
+		_, _ = fmt.Fprintf(&sb, "%s%s", uuid.New().String(), filepath.Ext(productCategory.Photo))
+		destination := sb.String()
+		if err = copyFile(
+			oldPhotoLocation(&sb, productCategory.Photo),
+			newPhotoLocation(&sb, destination),
+		); err != nil {
+			Log(slog.LevelError, err.Error())
+			return
 		}
 	}
 	// standalone products
@@ -1663,4 +1683,36 @@ func RandomNumber(length int) string {
 		randomBytes[i] = numbers[randomBytes[i]%10]
 	}
 	return ByteSlice2String(randomBytes)
+}
+
+func copyFile(src, dst string) error {
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+	destination, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+	if _, err = io.Copy(destination, source); err != nil {
+		return err
+	}
+	if err = destination.Sync(); err != nil {
+		return err
+	}
+	return os.Chmod(dst, 0644)
+}
+
+func oldPhotoLocation(sb *strings.Builder, filename string) string {
+	sb.Reset()
+	_, _ = fmt.Fprintf(sb, "%s/product_category/%s", os.Getenv("PHOTO_DIRECTORY"), filename)
+	return sb.String()
+}
+
+func newPhotoLocation(sb *strings.Builder, filename string) string {
+	sb.Reset()
+	_, _ = fmt.Fprintf(sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), filename)
+	return sb.String()
 }
