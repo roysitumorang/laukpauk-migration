@@ -161,8 +161,8 @@ type (
 		Name,
 		Photo,
 		Description string
-		StockStatus int
-		Pinned      bool
+		ReadyStock,
+		Pinned bool
 		BasePrice,
 		Discount int64
 		OldCreatedBy,
@@ -1084,7 +1084,7 @@ func main() {
 			, a.foto
 			, a.nama
 			, a.idKategoriProduk
-			, CASE a.stokAvailable WHEN 1 THEN 0 ELSE 1 END
+			, a.stokAvailable = 1
 			, a.superior = 1
 			, a.createdBy
 			, a.createdAt
@@ -1116,7 +1116,7 @@ func main() {
 			&product.Photo,
 			&product.Name,
 			&product.OldProductCategoryID,
-			&product.StockStatus,
+			&product.ReadyStock,
 			&product.Pinned,
 			&product.OldCreatedBy,
 			&product.CreatedAt,
@@ -1179,7 +1179,7 @@ func main() {
 				, name
 				, photo
 				, description
-				, stock_status
+				, ready_stock
 				, pinned
 				, created_by
 				, created_at
@@ -1193,7 +1193,7 @@ func main() {
 			product.Name,
 			product.Photo,
 			product.Description,
-			product.StockStatus,
+			product.ReadyStock,
 			product.Pinned,
 			product.CreatedBy,
 			product.CreatedAt,
@@ -1335,7 +1335,7 @@ func main() {
 			, nama
 			, harga
 			, diskon
-			, CASE stockAvailable WHEN 1 THEN 0 ELSE 1 END
+			, stockAvailable = 1
 			, superior = 1
 			, keterangan
 			, createdBy
@@ -1362,7 +1362,7 @@ func main() {
 			&product.Name,
 			&product.BasePrice,
 			&product.Discount,
-			&product.StockStatus,
+			&product.ReadyStock,
 			&product.Pinned,
 			&product.Description,
 			&product.OldCreatedBy,
@@ -1420,7 +1420,7 @@ func main() {
 				, name
 				, photo
 				, description
-				, stock_status
+				, ready_stock
 				, pinned
 				, created_by
 				, created_at
@@ -1434,7 +1434,7 @@ func main() {
 			product.Name,
 			product.Photo,
 			product.Description,
-			product.StockStatus,
+			product.ReadyStock,
 			product.Pinned,
 			product.CreatedBy,
 			product.CreatedAt,
