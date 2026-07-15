@@ -163,6 +163,7 @@ type (
 		Description string
 		ReadyStock,
 		Pinned bool
+		Hits int64
 		BasePrice,
 		Discount int64
 		OldCreatedBy,
@@ -1193,11 +1194,12 @@ func main() {
 				, description
 				, ready_stock
 				, pinned
+				, hits
 				, created_by
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 			RETURNING id`,
 			RecordStatusActive,
 			product.ProductCategoryID,
@@ -1207,6 +1209,7 @@ func main() {
 			product.Description,
 			product.ReadyStock,
 			product.Pinned,
+			product.Hits,
 			product.CreatedBy,
 			product.CreatedAt,
 			product.UpdatedBy,
@@ -1434,11 +1437,12 @@ func main() {
 				, description
 				, ready_stock
 				, pinned
+				, hits
 				, created_by
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 			RETURNING id`,
 			RecordStatusActive,
 			product.ProductCategoryID,
@@ -1448,6 +1452,7 @@ func main() {
 			product.Description,
 			product.ReadyStock,
 			product.Pinned,
+			product.Hits,
 			product.CreatedBy,
 			product.CreatedAt,
 			product.UpdatedBy,
