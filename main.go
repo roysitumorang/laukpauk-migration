@@ -669,12 +669,16 @@ func main() {
 		articles = append(articles, article)
 	}
 	for i, article := range articles {
-		if createdBy, ok := mapAdminIDs[article.OldCreatedBy]; ok {
-			article.CreatedBy = createdBy
+		createdBy, ok := mapAdminIDs[article.OldCreatedBy]
+		if !ok {
+			createdBy = adminID
 		}
-		if updatedBy, ok := mapAdminIDs[article.OldUpdatedBy]; ok {
-			article.UpdatedBy = updatedBy
+		article.CreatedBy = createdBy
+		updatedBy, ok := mapAdminIDs[article.OldUpdatedBy]
+		if !ok {
+			updatedBy = adminID
 		}
+		article.UpdatedBy = updatedBy
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO articles (
@@ -715,8 +719,8 @@ func main() {
 			, permalink
 			, createdBy
 			, createdAt
-			, updatedBy
-			, updatedAt
+			, COALESCE(updatedBy, createdBy)
+			, COALESCE(updatedAt, createdAt)
 		FROM blog
 		ORDER BY id`,
 	)
@@ -748,12 +752,16 @@ func main() {
 		blogs = append(blogs, blog)
 	}
 	for i, blog := range blogs {
-		if createdBy, ok := mapAdminIDs[blog.OldCreatedBy]; ok {
-			blog.CreatedBy = createdBy
+		createdBy, ok := mapAdminIDs[blog.OldCreatedBy]
+		if !ok {
+			createdBy = adminID
 		}
-		if updatedBy, ok := mapAdminIDs[blog.OldUpdatedBy]; ok {
-			blog.UpdatedBy = updatedBy
+		blog.CreatedBy = createdBy
+		updatedBy, ok := mapAdminIDs[blog.OldUpdatedBy]
+		if !ok {
+			updatedBy = adminID
 		}
+		blog.UpdatedBy = updatedBy
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO blogs (
@@ -792,8 +800,8 @@ func main() {
 			, c.elementValue
 			, p.createdBy
 			, p.createdAt
-			, p.updatedBy
-			, p.updatedAt
+			, COALESCE(p.updatedBy, p.createdBy)
+			, COALESCE(p.updatedAt, p.createdAt)
 		FROM homepage p
 		JOIN homepage_element c ON p.id = c.parent
 		ORDER BY c.id`,
@@ -899,12 +907,16 @@ func main() {
 		blocks[index] = block
 	}
 	for i, block := range blocks {
-		if createdBy, ok := mapAdminIDs[block.OldCreatedBy]; ok {
-			block.CreatedBy = createdBy
+		createdBy, ok := mapAdminIDs[block.OldCreatedBy]
+		if !ok {
+			createdBy = adminID
 		}
-		if updatedBy, ok := mapAdminIDs[block.OldUpdatedBy]; ok {
-			block.UpdatedBy = updatedBy
+		block.CreatedBy = createdBy
+		updatedBy, ok := mapAdminIDs[block.OldUpdatedBy]
+		if !ok {
+			updatedBy = adminID
 		}
+		block.UpdatedBy = updatedBy
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO blocks (
