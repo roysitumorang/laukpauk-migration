@@ -361,65 +361,76 @@ func main() {
 				admin.UpdatedBy = &updatedBy
 			}
 		}
-		if err = tx.QueryRow(
-			ctx,
-			`INSERT INTO users (
-				user_type
-				, user_status
-				, name
-				, mobile_phone_confirmed_at
-				, mobile_phone
-				, username
-				, email_confirmed_at
-				, email
-				, encrypted_password
-				, photo
-				, created_by
-				, created_at
-				, updated_by
-				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-			RETURNING id`,
-			0,
-			0,
-			admin.Name,
-			admin.UpdatedAt,
-			admin.MobilePhone,
-			admin.Username,
-			admin.UpdatedAt,
-			admin.Email,
-			admin.Password,
-			admin.Photo,
-			admin.CreatedBy,
-			admin.CreatedAt,
-			admin.UpdatedBy,
-			admin.UpdatedAt,
-		).Scan(&admin.ID); err != nil {
-			Log(slog.LevelError, err.Error())
-			return
+		if admin.Email == "benni.surbakti@gmail.com" {
+			if err = tx.QueryRow(
+				ctx,
+				"SELECT id FROM users WHERE email = $1",
+				admin.Email,
+			).Scan(&admin.ID); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+		} else {
+			if err = tx.QueryRow(
+				ctx,
+				`INSERT INTO users (
+					user_type
+					, user_status
+					, name
+					, mobile_phone_confirmed_at
+					, mobile_phone
+					, username
+					, email_confirmed_at
+					, email
+					, encrypted_password
+					, photo
+					, created_by
+					, created_at
+					, updated_by
+					, updated_at
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+				RETURNING id`,
+				0,
+				0,
+				admin.Name,
+				admin.UpdatedAt,
+				admin.MobilePhone,
+				admin.Username,
+				admin.UpdatedAt,
+				admin.Email,
+				admin.Password,
+				admin.Photo,
+				admin.CreatedBy,
+				admin.CreatedAt,
+				admin.UpdatedBy,
+				admin.UpdatedAt,
+			).Scan(&admin.ID); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+			var adminType int
+			switch admin.Role {
+			case "superadmin":
+				adminType = 1
+			case "admin":
+				fallthrough
+			default:
+				adminType = 0
+			}
+			if _, err = tx.Exec(
+				ctx,
+				`INSERT INTO admins (
+					user_id
+					, admin_type
+				) VALUES ($1, $2)`,
+				admin.ID,
+				adminType,
+			); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
 		}
 		mapAdminIDs[admin.OldID] = admin.ID
-		var adminType int
-		switch admin.Role {
-		case "superadmin":
-			adminType = 1
-		case "admin":
-			fallthrough
-		default:
-			adminType = 0
-		}
-		if _, err = tx.Exec(
-			ctx,
-			`INSERT INTO admins (
-				user_id
-				, admin_type
-			) VALUES ($1, $2)`,
-			admin.ID,
-			adminType,
-		); err != nil {
-			Log(slog.LevelError, err.Error())
-			return
-		}
 		admins[i] = admin
 		adminID = admin.ID
 	}
