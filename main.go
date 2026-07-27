@@ -1319,7 +1319,8 @@ func main() {
 				record_status
 				, product_id
 				, stock_unit
-				, price
+				, base_price
+				, selling_price
 				, discount_type
 				, discount_rate
 				, discount_minimum_quantity
@@ -1330,7 +1331,7 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			) VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 			RETURNING id`,
 			RecordStatusActive,
 			productVariant.ProductID,
@@ -1478,7 +1479,8 @@ func main() {
 				record_status
 				, product_id
 				, stock_unit
-				, price
+				, base_price
+				, selling_price
 				, discount_type
 				, discount_rate
 				, discount_minimum_quantity
@@ -1489,7 +1491,7 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+			) VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
 			RecordStatusActive,
 			product.ID,
 			"paket",
