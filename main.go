@@ -117,7 +117,7 @@ type (
 		OldCreatedBy,
 		OldUpdatedBy int64
 		CreatedAt,
-		UpdatedAt time.Time
+		UpdatedAt *time.Time
 		Items []*LandingPageItem
 	}
 	LandingPageItem struct {
@@ -807,15 +807,16 @@ func main() {
 	rows, err = mysql.QueryContext(
 		ctx,
 		`SELECT
-			p.name
+			COALESCE(p.name, CASE WHEN c.parent = '_halamanBantuan' THEN c.parent END)
 			, c.elementKey
 			, c.elementValue
-			, p.createdBy
+			, COALESCE(p.createdBy, 0)
 			, p.createdAt
-			, COALESCE(p.updatedBy, p.createdBy)
+			, COALESCE(p.updatedBy, 0)
 			, COALESCE(p.updatedAt, p.createdAt)
 		FROM homepage p
-		JOIN homepage_element c ON p.id = c.parent
+		RIGHT JOIN homepage_element c ON p.id = CASE WHEN c.parent = '_halamanBantuan' THEN NULL ELSE c.parent END
+		WHERE c.parent != '0'
 		ORDER BY c.id`,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -828,6 +829,7 @@ func main() {
 	defer rows.Close()
 	var landingPages []*LandingPage
 	mapLandingPageNames := map[string]int{}
+	var maxCreatedAt, maxUpdatedAt time.Time
 	for rows.Next() {
 		var (
 			landingPageName,
@@ -836,7 +838,7 @@ func main() {
 			oldCreatedBy,
 			oldUpdatedBy int64
 			createdAt,
-			updatedAt time.Time
+			updatedAt *time.Time
 		)
 		if err = rows.Scan(
 			&landingPageName,
@@ -859,8 +861,18 @@ func main() {
 			landingPageName = "commitment"
 		case "pahlawan-dapur":
 			landingPageName = "kitchen-hero"
-		case "bantuan":
+		case "_halamanBantuan":
 			landingPageName = "faq"
+		}
+		if createdAt != nil {
+			maxCreatedAt = *createdAt
+		} else {
+			createdAt = &maxCreatedAt
+		}
+		if updatedAt != nil {
+			maxUpdatedAt = *updatedAt
+		} else {
+			updatedAt = &maxUpdatedAt
 		}
 		index, ok := mapLandingPageNames[landingPageName]
 		if !ok {
