@@ -108,7 +108,7 @@ type (
 		CreatedAt,
 		UpdatedAt time.Time
 	}
-	Block struct {
+	LandingPage struct {
 		ID               uuid.UUID
 		Name             string
 		CustomAttributes map[string]string
@@ -118,21 +118,21 @@ type (
 		OldUpdatedBy int64
 		CreatedAt,
 		UpdatedAt time.Time
-		Items []*BlockItem
+		Items []*LandingPageItem
 	}
-	BlockItem struct {
+	LandingPageItem struct {
 		Subject,
 		Body string
 		Photo,
 		LinkText,
 		LinkURL *string
 	}
-	BlockItemData struct {
+	LandingPageItemData struct {
 		Subject string  `json:"title"`
 		Body    string  `json:"content"`
 		Photo   *string `json:"img"`
 	}
-	BlockItemHero struct {
+	LandingPageItemHero struct {
 		Subject  string  `json:"heading"`
 		Body     string  `json:"content"`
 		LinkURL  *string `json:"buttonLink"`
@@ -803,7 +803,7 @@ func main() {
 		}
 		blogs[i] = blog
 	}
-	// blocks
+	// landing_pages
 	rows, err = mysql.QueryContext(
 		ctx,
 		`SELECT
@@ -826,11 +826,11 @@ func main() {
 		return
 	}
 	defer rows.Close()
-	var blocks []*Block
-	mapBlockNames := map[string]int{}
+	var landingPages []*LandingPage
+	mapLandingPageNames := map[string]int{}
 	for rows.Next() {
 		var (
-			blockName,
+			landingPageName,
 			elementKey,
 			elementValue string
 			oldCreatedBy,
@@ -839,7 +839,7 @@ func main() {
 			updatedAt time.Time
 		)
 		if err = rows.Scan(
-			&blockName,
+			&landingPageName,
 			&elementKey,
 			&elementValue,
 			&oldCreatedBy,
@@ -850,56 +850,56 @@ func main() {
 			Log(slog.LevelError, err.Error())
 			return
 		}
-		switch blockName {
+		switch landingPageName {
 		case "fitur":
-			blockName = "feature"
+			landingPageName = "feature"
 		case "uang-belanja-gratis":
-			blockName = "free-shopping"
+			landingPageName = "free-shopping"
 		case "komitmen":
-			blockName = "commitment"
+			landingPageName = "commitment"
 		case "pahlawan-dapur":
-			blockName = "kitchen-hero"
+			landingPageName = "kitchen-hero"
 		case "bantuan":
-			blockName = "faq"
+			landingPageName = "faq"
 		}
-		index, ok := mapBlockNames[blockName]
+		index, ok := mapLandingPageNames[landingPageName]
 		if !ok {
-			blocks = append(
-				blocks,
-				new(Block{
-					Name:             blockName,
+			landingPages = append(
+				landingPages,
+				&LandingPage{
+					Name:             landingPageName,
 					CustomAttributes: map[string]string{},
 					OldCreatedBy:     oldCreatedBy,
 					CreatedAt:        createdAt,
 					OldUpdatedBy:     oldUpdatedBy,
 					UpdatedAt:        updatedAt,
-				}),
+				},
 			)
-			index = len(blocks) - 1
-			mapBlockNames[blockName] = index
+			index = len(landingPages) - 1
+			mapLandingPageNames[landingPageName] = index
 		}
-		block := blocks[index]
+		landingPage := landingPages[index]
 		if strings.HasPrefix(elementValue, "{") {
-			blockItem := new(BlockItem)
-			switch blockName {
+			landingPageItem := &LandingPageItem{}
+			switch landingPageName {
 			case "hero":
-				var data BlockItemHero
+				var data LandingPageItemHero
 				if err = json.Unmarshal(String2ByteSlice(elementValue), &data); err == nil {
-					blockItem.Subject = data.Subject
-					blockItem.Body = data.Body
-					blockItem.Photo = data.Photo
-					blockItem.LinkText = data.LinkText
-					blockItem.LinkURL = data.LinkURL
+					landingPageItem.Subject = data.Subject
+					landingPageItem.Body = data.Body
+					landingPageItem.Photo = data.Photo
+					landingPageItem.LinkText = data.LinkText
+					landingPageItem.LinkURL = data.LinkURL
 				}
 			case "feature", "why", "faq":
-				var data BlockItemData
+				var data LandingPageItemData
 				if err = json.Unmarshal(String2ByteSlice(elementValue), &data); err == nil {
-					blockItem.Subject = data.Subject
-					blockItem.Body = data.Body
-					blockItem.Photo = data.Photo
+					landingPageItem.Subject = data.Subject
+					landingPageItem.Body = data.Body
+					landingPageItem.Photo = data.Photo
 				}
 			}
-			block.Items = append(block.Items, blockItem)
+			landingPage.Items = append(landingPage.Items, landingPageItem)
 		} else {
 			var key string
 			switch elementKey {
@@ -914,24 +914,24 @@ func main() {
 			case "_img":
 				key = "photo"
 			}
-			block.CustomAttributes[key] = elementValue
+			landingPage.CustomAttributes[key] = elementValue
 		}
-		blocks[index] = block
+		landingPages[index] = landingPage
 	}
-	for i, block := range blocks {
-		createdBy, ok := mapAdminIDs[block.OldCreatedBy]
+	for i, landingPage := range landingPages {
+		createdBy, ok := mapAdminIDs[landingPage.OldCreatedBy]
 		if !ok {
 			createdBy = adminID
 		}
-		block.CreatedBy = createdBy
-		updatedBy, ok := mapAdminIDs[block.OldUpdatedBy]
+		landingPage.CreatedBy = createdBy
+		updatedBy, ok := mapAdminIDs[landingPage.OldUpdatedBy]
 		if !ok {
 			updatedBy = adminID
 		}
-		block.UpdatedBy = updatedBy
+		landingPage.UpdatedBy = updatedBy
 		if err = tx.QueryRow(
 			ctx,
-			`INSERT INTO blocks (
+			`INSERT INTO landing_pages (
 				record_status
 				, name
 				, custom_attributes
@@ -942,22 +942,22 @@ func main() {
 			) VALUES ($1, $2, $3, $4, $5, $6, $7)
 			RETURNING id`,
 			RecordStatusActive,
-			block.Name,
-			block.CustomAttributes,
-			block.CreatedBy,
-			block.CreatedAt,
-			block.UpdatedBy,
-			block.UpdatedAt,
-		).Scan(&block.ID); err != nil {
+			landingPage.Name,
+			landingPage.CustomAttributes,
+			landingPage.CreatedBy,
+			landingPage.CreatedAt,
+			landingPage.UpdatedBy,
+			landingPage.UpdatedAt,
+		).Scan(&landingPage.ID); err != nil {
 			Log(slog.LevelError, err.Error())
 			return
 		}
-		for j, blockItem := range block.Items {
+		for j, landingPageItem := range landingPage.Items {
 			if _, err = tx.Exec(
 				ctx,
-				`INSERT INTO block_items (
+				`INSERT INTO landing_page_items (
 					record_status
-					, block_name
+					, landing_page_name
 					, subject
 					, body
 					, link_text
@@ -969,23 +969,23 @@ func main() {
 					, updated_at
 				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 				RecordStatusActive,
-				block.Name,
-				blockItem.Subject,
-				blockItem.Body,
-				blockItem.LinkText,
-				blockItem.LinkURL,
-				blockItem.Photo,
-				block.CreatedBy,
-				block.CreatedAt,
-				block.UpdatedBy,
-				block.UpdatedAt,
+				landingPage.Name,
+				landingPageItem.Subject,
+				landingPageItem.Body,
+				landingPageItem.LinkText,
+				landingPageItem.LinkURL,
+				landingPageItem.Photo,
+				landingPage.CreatedBy,
+				landingPage.CreatedAt,
+				landingPage.UpdatedBy,
+				landingPage.UpdatedAt,
 			); err != nil {
 				Log(slog.LevelError, err.Error())
 				return
 			}
-			block.Items[j] = blockItem
+			landingPage.Items[j] = landingPageItem
 		}
-		blocks[i] = block
+		landingPages[i] = landingPage
 	}
 	// product_categories
 	rows, err = mysql.QueryContext(
