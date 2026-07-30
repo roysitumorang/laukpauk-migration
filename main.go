@@ -121,6 +121,7 @@ type (
 		Items []*LandingPageItem
 	}
 	LandingPageItem struct {
+		OldLandingPageName,
 		Subject,
 		Body string
 		Photo,
@@ -853,6 +854,8 @@ func main() {
 			return
 		}
 		switch landingPageName {
+		case "hero":
+			landingPageName = "hero-slider"
 		case "fitur":
 			landingPageName = "feature"
 		case "uang-belanja-gratis":
@@ -894,7 +897,8 @@ func main() {
 		if strings.HasPrefix(elementValue, "{") {
 			landingPageItem := &LandingPageItem{}
 			switch landingPageName {
-			case "hero":
+			case "hero-slider":
+				landingPageItem.OldLandingPageName = "hero"
 				var data LandingPageItemHero
 				if err = json.Unmarshal(String2ByteSlice(elementValue), &data); err == nil {
 					landingPageItem.Subject = data.Subject
@@ -904,6 +908,7 @@ func main() {
 					landingPageItem.LinkURL = data.LinkURL
 				}
 			case "feature", "why", "faq":
+				landingPageItem.OldLandingPageName = landingPageName
 				var data LandingPageItemData
 				if err = json.Unmarshal(String2ByteSlice(elementValue), &data); err == nil {
 					landingPageItem.Subject = data.Subject
@@ -941,6 +946,19 @@ func main() {
 			updatedBy = adminID
 		}
 		landingPage.UpdatedBy = updatedBy
+		if photo, ok := landingPage.CustomAttributes["photo"]; ok {
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s%s", uuid.New().String(), filepath.Ext(photo))
+			destination := sb.String()
+			if err = copyFile(
+				oldLandingPagePhotoLocation(&sb, landingPage.Name, photo),
+				newPhotoLocation(&sb, destination),
+			); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+			landingPage.CustomAttributes["photo"] = destination
+		}
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO landing_pages (
@@ -965,6 +983,19 @@ func main() {
 			return
 		}
 		for j, landingPageItem := range landingPage.Items {
+			if landingPageItem.Photo != nil {
+				sb.Reset()
+				_, _ = fmt.Fprintf(&sb, "%s%s", uuid.New().String(), filepath.Ext(*landingPageItem.Photo))
+				destination := sb.String()
+				if err = copyFile(
+					oldLandingPagePhotoLocation(&sb, landingPageItem.OldLandingPageName, *landingPageItem.Photo),
+					newPhotoLocation(&sb, destination),
+				); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+				landingPageItem.Photo = &destination
+			}
 			if _, err = tx.Exec(
 				ctx,
 				`INSERT INTO landing_page_items (
@@ -1624,5 +1655,11 @@ func oldProductPhotoLocation(sb *strings.Builder, filename string) string {
 func newPhotoLocation(sb *strings.Builder, filename string) string {
 	sb.Reset()
 	_, _ = fmt.Fprintf(sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), filename)
+	return sb.String()
+}
+
+func oldLandingPagePhotoLocation(sb *strings.Builder, landingPageName, filename string) string {
+	sb.Reset()
+	_, _ = fmt.Fprintf(sb, "%s/landing-page/%s/%s", os.Getenv("PHOTO_DIRECTORY"), landingPageName, filename)
 	return sb.String()
 }
