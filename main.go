@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"log/slog"
 	"os"
@@ -22,6 +24,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/kolesa-team/go-webp/encoder"
+	"github.com/kolesa-team/go-webp/webp"
 	"github.com/nyaruka/phonenumbers"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -109,8 +113,9 @@ type (
 		UpdatedAt time.Time
 	}
 	LandingPage struct {
-		ID               uuid.UUID
-		Name             string
+		ID uuid.UUID
+		OldName,
+		Name string
 		CustomAttributes map[string]string
 		CreatedBy,
 		UpdatedBy uuid.UUID
@@ -260,6 +265,16 @@ func main() {
 		}
 	}(ctx)
 	// admins
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/admin/admin-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	src := sb.String()
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/admin-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	dst := sb.String()
+	if err = copyFile(src, dst); err != nil {
+		Log(slog.LevelError, err.Error())
+		return
+	}
 	rows, err := mysql.QueryContext(
 		ctx,
 		`SELECT
@@ -436,6 +451,16 @@ func main() {
 		adminID = admin.ID
 	}
 	// buyers
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/user/user-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	src = sb.String()
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/buyer-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	dst = sb.String()
+	if err = copyFile(src, dst); err != nil {
+		Log(slog.LevelError, err.Error())
+		return
+	}
 	rows, err = mysql.QueryContext(
 		ctx,
 		`SELECT
@@ -584,6 +609,34 @@ func main() {
 			buyer.VerificationCode = nil
 			confirmedAt = &buyer.UpdatedAt
 		}
+		if buyer.Photo != "user-default.png" {
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s/user/%s", os.Getenv("PHOTO_DIRECTORY"), buyer.Photo)
+			src = sb.String()
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s.webp", uuid.New().String())
+			buyer.Photo = sb.String()
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), buyer.Photo)
+			dst = sb.String()
+			switch filepath.Ext(src) {
+			case ".jpg", ".jpeg":
+				if err = jpeg2webp(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+			case ".png":
+				if err = png2webp(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+			case ".webp":
+				if err = copyFile(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+			}
+		}
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO users (
@@ -639,6 +692,16 @@ func main() {
 		buyers[i] = buyer
 	}
 	// articles
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/artikel/artikel-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	src = sb.String()
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/article-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	dst = sb.String()
+	if err = copyFile(src, dst); err != nil {
+		Log(slog.LevelError, err.Error())
+		return
+	}
 	rows, err = mysql.QueryContext(
 		ctx,
 		`SELECT
@@ -692,6 +755,34 @@ func main() {
 			updatedBy = adminID
 		}
 		article.UpdatedBy = updatedBy
+		if article.Photo != "artikel-default.png" {
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s/artikel/%s", os.Getenv("PHOTO_DIRECTORY"), article.Photo)
+			src = sb.String()
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s.webp", uuid.New().String())
+			article.Photo = sb.String()
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), article.Photo)
+			dst = sb.String()
+			switch filepath.Ext(src) {
+			case ".jpg", ".jpeg":
+				if err = jpeg2webp(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+			case ".png":
+				if err = png2webp(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+			case ".webp":
+				if err = copyFile(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+			}
+		}
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO articles (
@@ -775,6 +866,32 @@ func main() {
 			updatedBy = adminID
 		}
 		blog.UpdatedBy = updatedBy
+		sb.Reset()
+		_, _ = fmt.Fprintf(&sb, "%s/blog/%s", os.Getenv("PHOTO_DIRECTORY"), blog.Photo)
+		src = sb.String()
+		sb.Reset()
+		_, _ = fmt.Fprintf(&sb, "%s.webp", uuid.New().String())
+		blog.Photo = sb.String()
+		sb.Reset()
+		_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), blog.Photo)
+		dst = sb.String()
+		switch filepath.Ext(src) {
+		case ".jpg", ".jpeg":
+			if err = jpeg2webp(src, dst); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+		case ".png":
+			if err = png2webp(src, dst); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+		case ".webp":
+			if err = copyFile(src, dst); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+		}
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO blogs (
@@ -805,6 +922,30 @@ func main() {
 		blogs[i] = blog
 	}
 	// landing_pages
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/landing-page-imgs/pahlawanDapur", os.Getenv("PHOTO_DIRECTORY"))
+	src = sb.String()
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/landing-page-imgs/pahlawan-dapur", os.Getenv("PHOTO_DIRECTORY"))
+	dst = sb.String()
+	if _, err = os.Stat(src); err == nil {
+		if err = os.Rename(src, dst); err != nil {
+			Log(slog.LevelError, err.Error())
+			return
+		}
+	}
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/landing-page-imgs/uangBelanjaGratis", os.Getenv("PHOTO_DIRECTORY"))
+	src = sb.String()
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/landing-page-imgs/uang-belanja-gratis", os.Getenv("PHOTO_DIRECTORY"))
+	dst = sb.String()
+	if _, err = os.Stat(src); err == nil {
+		if err = os.Rename(src, dst); err != nil {
+			Log(slog.LevelError, err.Error())
+			return
+		}
+	}
 	rows, err = mysql.QueryContext(
 		ctx,
 		`SELECT
@@ -829,10 +970,12 @@ func main() {
 	}
 	defer rows.Close()
 	var landingPages []*LandingPage
-	mapLandingPageNames := map[string]int{}
+	mapLandingPageNameIndexes := map[string]int{}
+	mapLandingPages := map[string]string{}
 	var maxCreatedAt, maxUpdatedAt time.Time
 	for rows.Next() {
 		var (
+			oldLandingPageName,
 			landingPageName,
 			elementKey,
 			elementValue string
@@ -842,7 +985,7 @@ func main() {
 			updatedAt *time.Time
 		)
 		if err = rows.Scan(
-			&landingPageName,
+			&oldLandingPageName,
 			&elementKey,
 			&elementValue,
 			&oldCreatedBy,
@@ -853,7 +996,7 @@ func main() {
 			Log(slog.LevelError, err.Error())
 			return
 		}
-		switch landingPageName {
+		switch oldLandingPageName {
 		case "hero":
 			landingPageName = "hero-slider"
 		case "fitur":
@@ -877,11 +1020,13 @@ func main() {
 		} else {
 			updatedAt = &maxUpdatedAt
 		}
-		index, ok := mapLandingPageNames[landingPageName]
+		mapLandingPages[landingPageName] = oldLandingPageName
+		index, ok := mapLandingPageNameIndexes[landingPageName]
 		if !ok {
 			landingPages = append(
 				landingPages,
 				&LandingPage{
+					OldName:          mapLandingPages[landingPageName],
 					Name:             landingPageName,
 					CustomAttributes: map[string]string{},
 					OldCreatedBy:     oldCreatedBy,
@@ -891,14 +1036,15 @@ func main() {
 				},
 			)
 			index = len(landingPages) - 1
-			mapLandingPageNames[landingPageName] = index
+			mapLandingPageNameIndexes[landingPageName] = index
 		}
 		landingPage := landingPages[index]
 		if strings.HasPrefix(elementValue, "{") {
-			landingPageItem := &LandingPageItem{}
+			landingPageItem := &LandingPageItem{
+				OldLandingPageName: landingPage.OldName,
+			}
 			switch landingPageName {
 			case "hero-slider":
-				landingPageItem.OldLandingPageName = "hero"
 				var data LandingPageItemHero
 				if err = json.Unmarshal(String2ByteSlice(elementValue), &data); err == nil {
 					landingPageItem.Subject = data.Subject
@@ -908,7 +1054,6 @@ func main() {
 					landingPageItem.LinkURL = data.LinkURL
 				}
 			case "feature", "why", "faq":
-				landingPageItem.OldLandingPageName = landingPageName
 				var data LandingPageItemData
 				if err = json.Unmarshal(String2ByteSlice(elementValue), &data); err == nil {
 					landingPageItem.Subject = data.Subject
@@ -948,16 +1093,32 @@ func main() {
 		landingPage.UpdatedBy = updatedBy
 		if photo, ok := landingPage.CustomAttributes["photo"]; ok {
 			sb.Reset()
-			_, _ = fmt.Fprintf(&sb, "%s%s", uuid.New().String(), filepath.Ext(photo))
-			destination := sb.String()
-			if err = copyFile(
-				oldLandingPagePhotoLocation(&sb, landingPage.Name, photo),
-				newPhotoLocation(&sb, destination),
-			); err != nil {
-				Log(slog.LevelError, err.Error())
-				return
+			_, _ = fmt.Fprintf(&sb, "%s/landing-page-imgs/%s/%s", os.Getenv("PHOTO_DIRECTORY"), landingPage.OldName, photo)
+			src = sb.String()
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s.webp", uuid.New().String())
+			photo = sb.String()
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), photo)
+			dst = sb.String()
+			switch filepath.Ext(src) {
+			case ".jpg", ".jpeg":
+				if err = jpeg2webp(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+			case ".png":
+				if err = png2webp(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+			case ".webp":
+				if err = copyFile(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
 			}
-			landingPage.CustomAttributes["photo"] = destination
+			landingPage.CustomAttributes["photo"] = photo
 		}
 		if err = tx.QueryRow(
 			ctx,
@@ -985,16 +1146,31 @@ func main() {
 		for j, landingPageItem := range landingPage.Items {
 			if landingPageItem.Photo != nil {
 				sb.Reset()
-				_, _ = fmt.Fprintf(&sb, "%s%s", uuid.New().String(), filepath.Ext(*landingPageItem.Photo))
-				destination := sb.String()
-				if err = copyFile(
-					oldLandingPagePhotoLocation(&sb, landingPageItem.OldLandingPageName, *landingPageItem.Photo),
-					newPhotoLocation(&sb, destination),
-				); err != nil {
-					Log(slog.LevelError, err.Error())
-					return
+				_, _ = fmt.Fprintf(&sb, "%s/landing-page-imgs/%s/%s", os.Getenv("PHOTO_DIRECTORY"), landingPage.OldName, *landingPageItem.Photo)
+				src = sb.String()
+				sb.Reset()
+				_, _ = fmt.Fprintf(&sb, "%s.webp", uuid.New().String())
+				landingPageItem.Photo = new(sb.String())
+				sb.Reset()
+				_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), *landingPageItem.Photo)
+				dst = sb.String()
+				switch filepath.Ext(src) {
+				case ".jpg", ".jpeg":
+					if err = jpeg2webp(src, dst); err != nil {
+						Log(slog.LevelError, err.Error())
+						return
+					}
+				case ".png":
+					if err = png2webp(src, dst); err != nil {
+						Log(slog.LevelError, err.Error())
+						return
+					}
+				case ".webp":
+					if err = copyFile(src, dst); err != nil {
+						Log(slog.LevelError, err.Error())
+						return
+					}
 				}
-				landingPageItem.Photo = &destination
 			}
 			if _, err = tx.Exec(
 				ctx,
@@ -1080,7 +1256,9 @@ func main() {
 		}
 		productCategory.UpdatedBy = updatedBy
 		if productCategory.Photo != os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO") {
-			if _, err = os.Stat(oldProductCategoryPhotoLocation(&sb, productCategory.Photo)); err != nil && errors.Is(err, os.ErrNotExist) {
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s/kategoriProduk/%s", os.Getenv("PHOTO_DIRECTORY"), productCategory.Photo)
+			if _, err = os.Stat(sb.String()); err != nil && errors.Is(err, os.ErrNotExist) {
 				productCategory.Photo = os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO")
 			}
 		}
@@ -1100,16 +1278,31 @@ func main() {
 	for i, productCategory := range productCategories {
 		if productCategory.Photo != os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO") {
 			sb.Reset()
-			_, _ = fmt.Fprintf(&sb, "%s%s", uuid.New().String(), filepath.Ext(productCategory.Photo))
-			destination := sb.String()
-			if err = copyFile(
-				oldProductCategoryPhotoLocation(&sb, productCategory.Photo),
-				newPhotoLocation(&sb, destination),
-			); err != nil {
-				Log(slog.LevelError, err.Error())
-				return
+			_, _ = fmt.Fprintf(&sb, "%s/kategoriProduk/%s", os.Getenv("PHOTO_DIRECTORY"), productCategory.Photo)
+			src = sb.String()
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s.webp", uuid.New().String())
+			productCategory.Photo = sb.String()
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), productCategory.Photo)
+			dst = sb.String()
+			switch filepath.Ext(src) {
+			case ".jpg", ".jpeg":
+				if err = jpeg2webp(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+			case ".png":
+				if err = png2webp(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+			case ".webp":
+				if err = copyFile(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
 			}
-			productCategory.Photo = destination
 		}
 		if err = tx.QueryRow(
 			ctx,
@@ -1214,7 +1407,9 @@ func main() {
 		}
 		product.UpdatedBy = updatedBy
 		if product.Photo != os.Getenv("PRODUCT_DEFAULT_PHOTO") {
-			if _, err = os.Stat(oldProductPhotoLocation(&sb, product.Photo)); err != nil && errors.Is(err, os.ErrNotExist) {
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s/produk/%s", os.Getenv("PHOTO_DIRECTORY"), product.Photo)
+			if _, err = os.Stat(sb.String()); err != nil && errors.Is(err, os.ErrNotExist) {
 				product.Photo = os.Getenv("PRODUCT_DEFAULT_PHOTO")
 			}
 		}
@@ -1226,16 +1421,31 @@ func main() {
 	for i, product := range products {
 		if product.Photo != os.Getenv("PRODUCT_DEFAULT_PHOTO") {
 			sb.Reset()
-			_, _ = fmt.Fprintf(&sb, "%s%s", uuid.New().String(), filepath.Ext(product.Photo))
-			destination := sb.String()
-			if err = copyFile(
-				oldProductPhotoLocation(&sb, product.Photo),
-				newPhotoLocation(&sb, destination),
-			); err != nil {
-				Log(slog.LevelError, err.Error())
-				return
+			_, _ = fmt.Fprintf(&sb, "%s/produk/%s", os.Getenv("PHOTO_DIRECTORY"), product.Photo)
+			src = sb.String()
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s.webp", uuid.New().String())
+			product.Photo = sb.String()
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), product.Photo)
+			dst = sb.String()
+			switch filepath.Ext(src) {
+			case ".jpg", ".jpeg":
+				if err = jpeg2webp(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+			case ".png":
+				if err = png2webp(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+			case ".webp":
+				if err = copyFile(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
 			}
-			product.Photo = destination
 		}
 		if err = tx.QueryRow(
 			ctx,
@@ -1460,7 +1670,9 @@ func main() {
 		}
 		product.UpdatedBy = updatedBy
 		if product.Photo != os.Getenv("BUNDLE_DEFAULT_PHOTO") {
-			if _, err = os.Stat(oldProductPhotoLocation(&sb, product.Photo)); err != nil && errors.Is(err, os.ErrNotExist) {
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s/paket/%s", os.Getenv("PHOTO_DIRECTORY"), product.Photo)
+			if _, err = os.Stat(sb.String()); err != nil && errors.Is(err, os.ErrNotExist) {
 				product.Photo = os.Getenv("BUNDLE_DEFAULT_PHOTO")
 			}
 		}
@@ -1470,16 +1682,31 @@ func main() {
 	for i, product := range products {
 		if product.Photo != os.Getenv("BUNDLE_DEFAULT_PHOTO") {
 			sb.Reset()
-			_, _ = fmt.Fprintf(&sb, "%s%s", uuid.New().String(), filepath.Ext(product.Photo))
-			destination := sb.String()
-			if err = copyFile(
-				oldProductPhotoLocation(&sb, product.Photo),
-				newPhotoLocation(&sb, destination),
-			); err != nil {
-				Log(slog.LevelError, err.Error())
-				return
+			_, _ = fmt.Fprintf(&sb, "%s/paket/%s", os.Getenv("PHOTO_DIRECTORY"), product.Photo)
+			src = sb.String()
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s.webp", uuid.New().String())
+			product.Photo = sb.String()
+			sb.Reset()
+			_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), product.Photo)
+			dst = sb.String()
+			switch filepath.Ext(src) {
+			case ".jpg", ".jpeg":
+				if err = jpeg2webp(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+			case ".png":
+				if err = png2webp(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
+			case ".webp":
+				if err = copyFile(src, dst); err != nil {
+					Log(slog.LevelError, err.Error())
+					return
+				}
 			}
-			product.Photo = destination
 		}
 		if err = tx.QueryRow(
 			ctx,
@@ -1640,26 +1867,52 @@ func copyFile(src, dst string) error {
 	return os.Chmod(dst, 0644)
 }
 
-func oldProductCategoryPhotoLocation(sb *strings.Builder, filename string) string {
-	sb.Reset()
-	_, _ = fmt.Fprintf(sb, "%s/product_category/%s", os.Getenv("PHOTO_DIRECTORY"), filename)
-	return sb.String()
+func jpeg2webp(src, dst string) error {
+	input, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+	image, err := jpeg.Decode(input)
+	if err != nil {
+		return err
+	}
+	output, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer output.Close()
+	options, err := encoder.NewLossyEncoderOptions(encoder.PresetDefault, 80)
+	if err != nil {
+		return err
+	}
+	if err = webp.Encode(output, image, options); err != nil {
+		return err
+	}
+	return os.Chmod(dst, 0644)
 }
 
-func oldProductPhotoLocation(sb *strings.Builder, filename string) string {
-	sb.Reset()
-	_, _ = fmt.Fprintf(sb, "%s/product/%s", os.Getenv("PHOTO_DIRECTORY"), filename)
-	return sb.String()
-}
-
-func newPhotoLocation(sb *strings.Builder, filename string) string {
-	sb.Reset()
-	_, _ = fmt.Fprintf(sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), filename)
-	return sb.String()
-}
-
-func oldLandingPagePhotoLocation(sb *strings.Builder, landingPageName, filename string) string {
-	sb.Reset()
-	_, _ = fmt.Fprintf(sb, "%s/landing-page/%s/%s", os.Getenv("PHOTO_DIRECTORY"), landingPageName, filename)
-	return sb.String()
+func png2webp(src, dst string) error {
+	input, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+	image, err := png.Decode(input)
+	if err != nil {
+		return err
+	}
+	output, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer output.Close()
+	options, err := encoder.NewLossyEncoderOptions(encoder.PresetDefault, 80)
+	if err != nil {
+		return err
+	}
+	if err = webp.Encode(output, image, options); err != nil {
+		return err
+	}
+	return os.Chmod(dst, 0644)
 }
