@@ -978,7 +978,6 @@ func main() {
 	for rows.Next() {
 		var (
 			oldLandingPageName,
-			landingPageName,
 			elementKey,
 			elementValue string
 			oldCreatedBy,
@@ -998,6 +997,7 @@ func main() {
 			Log(slog.LevelError, err.Error())
 			return
 		}
+		landingPageName := oldLandingPageName
 		switch oldLandingPageName {
 		case "hero":
 			landingPageName = "hero-slider"
