@@ -251,7 +251,9 @@ func main() {
 		return
 	}
 	temporaryPassword := String2ByteSlice(os.Getenv("TEMPORARY_PASSWORD"))
-	tx, err := pg.Begin(ctx)
+	tx, err := pg.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
 	if err != nil {
 		Log(slog.LevelError, err.Error())
 		return
