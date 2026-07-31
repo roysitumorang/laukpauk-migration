@@ -63,8 +63,9 @@ type (
 		UpdatedAt time.Time
 	}
 	Buyer struct {
-		ID    uuid.UUID
-		OldID int64
+		ID     uuid.UUID
+		OldID  int64
+		UserID uuid.UUID
 		ReferralCode,
 		Photo,
 		Name,
@@ -471,7 +472,7 @@ func main() {
 	_, _ = fmt.Fprintf(&sb, "%s/user/user-default.png", os.Getenv("PHOTO_DIRECTORY"))
 	src = sb.String()
 	sb.Reset()
-	_, _ = fmt.Fprintf(&sb, "%s/buyer-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	_, _ = fmt.Fprintf(&sb, "%s/user-default.png", os.Getenv("PHOTO_DIRECTORY"))
 	dst = sb.String()
 	if err = copyFile(src, dst); err != nil {
 		Log(slog.LevelError, err.Error())
@@ -603,23 +604,8 @@ func main() {
 		}
 		buyers = append(buyers, buyer)
 	}
-	mapBuyerIDs := map[int64]uuid.UUID{}
+	mapBuyers := map[int64]Buyer{}
 	for i, buyer := range buyers {
-		if buyer.OldReferrerID != nil {
-			if referencedBy, ok := mapBuyerIDs[*buyer.OldReferrerID]; ok {
-				buyer.ReferrerID = &referencedBy
-			}
-		}
-		if buyer.OldCreatedBy != nil {
-			if createdBy, ok := mapBuyerIDs[*buyer.OldCreatedBy]; ok {
-				buyer.CreatedBy = &createdBy
-			}
-		}
-		if buyer.OldUpdatedBy != nil {
-			if updatedBy, ok := mapBuyerIDs[*buyer.OldUpdatedBy]; ok {
-				buyer.UpdatedBy = &updatedBy
-			}
-		}
 		var confirmedAt *time.Time
 		if buyer.IsVerified == 1 {
 			buyer.VerificationCode = nil
@@ -665,11 +651,9 @@ func main() {
 				, username
 				, encrypted_password
 				, photo
-				, created_by
 				, created_at
-				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			RETURNING id`,
 			1,
 			0,
@@ -680,30 +664,73 @@ func main() {
 			buyer.Username,
 			buyer.Password,
 			buyer.Photo,
-			buyer.CreatedBy,
 			buyer.CreatedAt,
-			buyer.UpdatedBy,
 			buyer.UpdatedAt,
-		).Scan(&buyer.ID); err != nil {
+		).Scan(&buyer.UserID); err != nil {
 			Log(slog.LevelError, err.Error())
 			return
 		}
-		mapBuyerIDs[buyer.OldID] = buyer.ID
-		if _, err = tx.Exec(
+		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO buyers (
 				user_id
 				, referral_code
 				, address
-				, referrer_id
-			) VALUES ($1, $2, $3, $4)`,
-			buyer.ID,
+			) VALUES ($1, $2, $3)
+			RETURNING id`,
+			buyer.UserID,
 			buyer.ReferralCode,
 			buyer.Address,
-			buyer.ReferrerID,
-		); err != nil {
+		).Scan(&buyer.ID); err != nil {
 			Log(slog.LevelError, err.Error())
 			return
+		}
+		buyers[i] = buyer
+		mapBuyers[buyer.OldID] = buyer
+	}
+	for i, buyer := range buyers {
+		if buyer.OldCreatedBy != nil {
+			if user, ok := mapBuyers[*buyer.OldCreatedBy]; ok {
+				buyer.CreatedBy = &user.UserID
+			}
+		}
+		if buyer.OldUpdatedBy != nil {
+			if user, ok := mapBuyers[*buyer.OldUpdatedBy]; ok {
+				buyer.UpdatedBy = &user.UserID
+			}
+		}
+		if buyer.OldReferrerID != nil {
+			if user, ok := mapBuyers[*buyer.OldReferrerID]; ok {
+				buyer.ReferrerID = &user.ID
+			}
+		}
+		if buyer.CreatedBy != nil || buyer.UpdatedBy != nil {
+			if _, err = tx.Exec(
+				ctx,
+				`UPDATE users SET
+					created_by = $1
+					, updated_by = $2
+				WHERE id = $3`,
+				buyer.CreatedBy,
+				buyer.UpdatedBy,
+				buyer.UserID,
+			); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+		}
+		if buyer.ReferrerID != nil {
+			if _, err = tx.Exec(
+				ctx,
+				`UPDATE buyers SET
+					referrer_id = $1
+				WHERE id = $2`,
+				buyer.ReferrerID,
+				buyer.ID,
+			); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
 		}
 		buyers[i] = buyer
 	}
