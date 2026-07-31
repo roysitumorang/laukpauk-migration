@@ -211,6 +211,20 @@ type (
 		OldUpdatedBy int64
 		UpdatedAt    time.Time
 	}
+	Banner struct {
+		ID    uuid.UUID
+		OldID int64
+		Name,
+		Description,
+		Photo string
+		Visible      bool
+		CreatedBy    uuid.UUID
+		OldCreatedBy int64
+		CreatedAt    time.Time
+		UpdatedBy    uuid.UUID
+		OldUpdatedBy int64
+		UpdatedAt    time.Time
+	}
 )
 
 func main() {
@@ -1783,6 +1797,115 @@ func main() {
 			return
 		}
 		products[i] = product
+	}
+	// banners
+	rows, err = mysql.QueryContext(
+		ctx,
+		`SELECT
+			id
+			, nama
+			, keterangan
+			, gambar
+			, shown = 1
+			, createdBy
+			, createdAt
+			, updatedBy
+			, updatedAt
+		FROM banner
+		ORDER BY id`,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		Log(slog.LevelError, err.Error())
+		return
+	}
+	defer rows.Close()
+	var banners []Banner
+	for rows.Next() {
+		var banner Banner
+		if err = rows.Scan(
+			&banner.OldID,
+			&banner.Name,
+			&banner.Description,
+			&banner.Photo,
+			&banner.Visible,
+			&banner.OldCreatedBy,
+			&banner.CreatedAt,
+			&banner.OldUpdatedBy,
+			&banner.UpdatedAt,
+		); err != nil {
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		banners = append(banners, banner)
+	}
+	for i, banner := range banners {
+		createdBy, ok := mapAdminIDs[banner.OldCreatedBy]
+		if !ok {
+			createdBy = adminID
+		}
+		banner.CreatedBy = createdBy
+		updatedBy, ok := mapAdminIDs[banner.OldUpdatedBy]
+		if !ok {
+			updatedBy = adminID
+		}
+		banner.UpdatedBy = updatedBy
+		sb.Reset()
+		_, _ = fmt.Fprintf(&sb, "%s/banner/%s", os.Getenv("PHOTO_DIRECTORY"), banner.Photo)
+		src = sb.String()
+		sb.Reset()
+		_, _ = fmt.Fprintf(&sb, "%s.webp", uuid.NewV7().String())
+		banner.Photo = sb.String()
+		sb.Reset()
+		_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), banner.Photo)
+		dst = sb.String()
+		switch filepath.Ext(src) {
+		case ".jpg", ".jpeg":
+			if err = jpeg2webp(src, dst); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+		case ".png":
+			if err = png2webp(src, dst); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+		case ".webp":
+			if err = copyFile(src, dst); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+		}
+		if err = tx.QueryRow(
+			ctx,
+			`INSERT INTO banners (
+				record_status
+				, name
+				, description
+				, photo
+				, visible
+				, created_by
+				, created_at
+				, updated_by
+				, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			RETURNING id`,
+			RecordStatusActive,
+			banner.Name,
+			banner.Description,
+			banner.Photo,
+			banner.Visible,
+			banner.CreatedBy,
+			banner.CreatedAt,
+			banner.UpdatedBy,
+			banner.UpdatedAt,
+		).Scan(&banner.ID); err != nil {
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		banners[i] = banner
 	}
 	if err = tx.Commit(ctx); err != nil {
 		Log(slog.LevelError, err.Error())
