@@ -1513,20 +1513,33 @@ func main() {
 			updatedBy = adminID
 		}
 		product.UpdatedBy = updatedBy
-		if product.Photo != os.Getenv("PRODUCT_DEFAULT_PHOTO") {
+		if product.Photo == "produk-default.png" {
+			product.Photo = "product-default.png"
+		} else {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/produk/%s", os.Getenv("PHOTO_DIRECTORY"), product.Photo)
 			if _, err = os.Stat(sb.String()); err != nil && errors.Is(err, os.ErrNotExist) {
-				product.Photo = os.Getenv("PRODUCT_DEFAULT_PHOTO")
+				product.Photo = "product-default.png"
 			}
 		}
 		products = append(products, product)
 		mapProductNames[productName] = struct{}{}
 	}
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/produk/produk-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	src = sb.String()
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/product-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	dst = sb.String()
+	photos = append(photos, dst)
+	if err = copyFile(src, dst); err != nil {
+		Log(slog.LevelError, err.Error())
+		return
+	}
 	mapProductIDs := map[int64]uuid.UUID{}
 	var params []any
 	for i, product := range products {
-		if product.Photo != os.Getenv("PRODUCT_DEFAULT_PHOTO") {
+		if product.Photo != "product-default.png" {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/produk/%s", os.Getenv("PHOTO_DIRECTORY"), product.Photo)
 			src = sb.String()
@@ -1777,18 +1790,31 @@ func main() {
 			updatedBy = adminID
 		}
 		product.UpdatedBy = updatedBy
-		if product.Photo != os.Getenv("BUNDLE_DEFAULT_PHOTO") {
+		if product.Photo == "paket-default.png" {
+			product.Photo = "bundle-default.png"
+		} else {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/paket/%s", os.Getenv("PHOTO_DIRECTORY"), product.Photo)
 			if _, err = os.Stat(sb.String()); err != nil && errors.Is(err, os.ErrNotExist) {
-				product.Photo = os.Getenv("BUNDLE_DEFAULT_PHOTO")
+				product.Photo = "bundle-default.png"
 			}
 		}
 		products = append(products, product)
 		mapProductNames[productName] = struct{}{}
 	}
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/paket/paket-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	src = sb.String()
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/bundle-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	dst = sb.String()
+	photos = append(photos, dst)
+	if err = copyFile(src, dst); err != nil {
+		Log(slog.LevelError, err.Error())
+		return
+	}
 	for i, product := range products {
-		if product.Photo != os.Getenv("BUNDLE_DEFAULT_PHOTO") {
+		if product.Photo != "bundle-default.png" {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/paket/%s", os.Getenv("PHOTO_DIRECTORY"), product.Photo)
 			src = sb.String()
