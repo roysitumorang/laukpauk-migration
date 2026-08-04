@@ -31,7 +31,8 @@ import (
 )
 
 var (
-	sb strings.Builder
+	sb     strings.Builder
+	photos []string
 )
 
 const (
@@ -46,8 +47,9 @@ const (
 
 type (
 	Admin struct {
-		ID    uuid.UUID
-		OldID int64
+		ID     uuid.UUID
+		OldID  int64
+		UserID uuid.UUID
 		Role,
 		Photo,
 		Name,
@@ -288,6 +290,7 @@ func main() {
 	sb.Reset()
 	_, _ = fmt.Fprintf(&sb, "%s/admin-default.png", os.Getenv("PHOTO_DIRECTORY"))
 	dst := sb.String()
+	photos = append(photos, dst)
 	if err = copyFile(src, dst); err != nil {
 		Log(slog.LevelError, err.Error())
 		return
@@ -381,28 +384,33 @@ func main() {
 		}
 		admins = append(admins, admin)
 	}
-	var adminID uuid.UUID
+	var adminID, adminUserID uuid.UUID
 	mapAdminIDs := map[int64]uuid.UUID{}
+	mapUserIDs := map[int64]uuid.UUID{}
 	for i, admin := range admins {
-		if admin.OldCreatedBy != nil {
-			if createdBy, ok := mapAdminIDs[*admin.OldCreatedBy]; ok {
-				admin.CreatedBy = &createdBy
-			}
-		}
-		if admin.OldUpdatedBy != nil {
-			if updatedBy, ok := mapAdminIDs[*admin.OldUpdatedBy]; ok {
-				admin.UpdatedBy = &updatedBy
-			}
-		}
 		if admin.Email == "benni.surbakti@gmail.com" {
 			if err = tx.QueryRow(
 				ctx,
-				"SELECT id FROM users WHERE email = $1",
+				`SELECT
+					a.id
+					, a.user_id
+				FROM admins a
+				WHERE EXISTS(
+					SELECT 1
+					FROM users u
+					WHERE u.id = a.user_id
+						AND u.email = $1
+				)`,
 				admin.Email,
-			).Scan(&admin.ID); err != nil {
+			).Scan(
+				&admin.ID,
+				&admin.UserID,
+			); err != nil {
 				Log(slog.LevelError, err.Error())
 				return
 			}
+			adminID = admin.ID
+			adminUserID = admin.UserID
 		} else {
 			if err = tx.QueryRow(
 				ctx,
@@ -417,11 +425,9 @@ func main() {
 					, email
 					, encrypted_password
 					, photo
-					, created_by
 					, created_at
-					, updated_by
 					, updated_at
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 				RETURNING id`,
 				0,
 				0,
@@ -433,11 +439,9 @@ func main() {
 				admin.Email,
 				admin.Password,
 				admin.Photo,
-				admin.CreatedBy,
 				admin.CreatedAt,
-				admin.UpdatedBy,
 				admin.UpdatedAt,
-			).Scan(&admin.ID); err != nil {
+			).Scan(&admin.UserID); err != nil {
 				Log(slog.LevelError, err.Error())
 				return
 			}
@@ -450,30 +454,62 @@ func main() {
 			default:
 				adminType = 0
 			}
-			if _, err = tx.Exec(
+			if err = tx.QueryRow(
 				ctx,
 				`INSERT INTO admins (
 					user_id
 					, admin_type
-				) VALUES ($1, $2)`,
-				admin.ID,
+				) VALUES ($1, $2)
+				RETURNING id`,
+				admin.UserID,
 				adminType,
-			); err != nil {
+			).Scan(&admin.ID); err != nil {
 				Log(slog.LevelError, err.Error())
 				return
 			}
 		}
 		mapAdminIDs[admin.OldID] = admin.ID
+		mapUserIDs[admin.OldID] = admin.UserID
 		admins[i] = admin
-		adminID = admin.ID
+	}
+	for i, admin := range admins {
+		if admin.OldCreatedBy != nil {
+			createdBy, ok := mapUserIDs[*admin.OldCreatedBy]
+			if !ok {
+				createdBy = adminUserID
+			}
+			admin.CreatedBy = &createdBy
+		}
+		if admin.OldUpdatedBy != nil {
+			updatedBy, ok := mapUserIDs[*admin.OldUpdatedBy]
+			if !ok {
+				updatedBy = adminUserID
+			}
+			admin.UpdatedBy = &updatedBy
+		}
+		if _, err = tx.Exec(
+			ctx,
+			`UPDATE users SET
+				created_by = $1
+				, updated_by = $2
+			WHERE id = $3`,
+			admin.CreatedBy,
+			admin.UpdatedBy,
+			admin.UserID,
+		); err != nil {
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		admins[i] = admin
 	}
 	// buyers
 	sb.Reset()
 	_, _ = fmt.Fprintf(&sb, "%s/user/user-default.png", os.Getenv("PHOTO_DIRECTORY"))
 	src = sb.String()
 	sb.Reset()
-	_, _ = fmt.Fprintf(&sb, "%s/user-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	_, _ = fmt.Fprintf(&sb, "%s/buyer-default.png", os.Getenv("PHOTO_DIRECTORY"))
 	dst = sb.String()
+	photos = append(photos, dst)
 	if err = copyFile(src, dst); err != nil {
 		Log(slog.LevelError, err.Error())
 		return
@@ -611,7 +647,9 @@ func main() {
 			buyer.VerificationCode = nil
 			confirmedAt = &buyer.UpdatedAt
 		}
-		if buyer.Photo != "user-default.png" {
+		if buyer.Photo == "user-default.png" {
+			buyer.Photo = "buyer-default.png"
+		} else {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/user/%s", os.Getenv("PHOTO_DIRECTORY"), buyer.Photo)
 			src = sb.String()
@@ -621,6 +659,7 @@ func main() {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), buyer.Photo)
 			dst = sb.String()
+			photos = append(photos, dst)
 			switch filepath.Ext(src) {
 			case ".jpg", ".jpeg":
 				if err = jpeg2webp(src, dst); err != nil {
@@ -690,14 +729,18 @@ func main() {
 	}
 	for i, buyer := range buyers {
 		if buyer.OldCreatedBy != nil {
-			if user, ok := mapBuyers[*buyer.OldCreatedBy]; ok {
-				buyer.CreatedBy = &user.UserID
+			createdBy, ok := mapUserIDs[*buyer.OldCreatedBy]
+			if !ok {
+				createdBy = adminUserID
 			}
+			buyer.CreatedBy = &createdBy
 		}
 		if buyer.OldUpdatedBy != nil {
-			if user, ok := mapBuyers[*buyer.OldUpdatedBy]; ok {
-				buyer.UpdatedBy = &user.UserID
+			updatedBy, ok := mapUserIDs[*buyer.OldUpdatedBy]
+			if !ok {
+				updatedBy = adminUserID
 			}
+			buyer.UpdatedBy = &updatedBy
 		}
 		if buyer.OldReferrerID != nil {
 			if user, ok := mapBuyers[*buyer.OldReferrerID]; ok {
@@ -741,6 +784,7 @@ func main() {
 	sb.Reset()
 	_, _ = fmt.Fprintf(&sb, "%s/article-default.png", os.Getenv("PHOTO_DIRECTORY"))
 	dst = sb.String()
+	photos = append(photos, dst)
 	if err = copyFile(src, dst); err != nil {
 		Log(slog.LevelError, err.Error())
 		return
@@ -798,7 +842,9 @@ func main() {
 			updatedBy = adminID
 		}
 		article.UpdatedBy = updatedBy
-		if article.Photo != "artikel-default.png" {
+		if article.Photo == "artikel-default.png" {
+			article.Photo = "article-default.png"
+		} else {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/artikel/%s", os.Getenv("PHOTO_DIRECTORY"), article.Photo)
 			src = sb.String()
@@ -808,6 +854,7 @@ func main() {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), article.Photo)
 			dst = sb.String()
+			photos = append(photos, dst)
 			switch filepath.Ext(src) {
 			case ".jpg", ".jpeg":
 				if err = jpeg2webp(src, dst); err != nil {
@@ -918,6 +965,7 @@ func main() {
 		sb.Reset()
 		_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), blog.Photo)
 		dst = sb.String()
+		photos = append(photos, dst)
 		switch filepath.Ext(src) {
 		case ".jpg", ".jpeg":
 			if err = jpeg2webp(src, dst); err != nil {
@@ -1144,6 +1192,7 @@ func main() {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), photo)
 			dst = sb.String()
+			photos = append(photos, dst)
 			switch filepath.Ext(src) {
 			case ".jpg", ".jpeg":
 				if err = jpeg2webp(src, dst); err != nil {
@@ -1197,6 +1246,7 @@ func main() {
 				sb.Reset()
 				_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), *landingPageItem.Photo)
 				dst = sb.String()
+				photos = append(photos, dst)
 				switch filepath.Ext(src) {
 				case ".jpg", ".jpeg":
 					if err = jpeg2webp(src, dst); err != nil {
@@ -1329,6 +1379,7 @@ func main() {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), productCategory.Photo)
 			dst = sb.String()
+			photos = append(photos, dst)
 			switch filepath.Ext(src) {
 			case ".jpg", ".jpeg":
 				if err = jpeg2webp(src, dst); err != nil {
@@ -1472,6 +1523,7 @@ func main() {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), product.Photo)
 			dst = sb.String()
+			photos = append(photos, dst)
 			switch filepath.Ext(src) {
 			case ".jpg", ".jpeg":
 				if err = jpeg2webp(src, dst); err != nil {
@@ -1733,6 +1785,7 @@ func main() {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), product.Photo)
 			dst = sb.String()
+			photos = append(photos, dst)
 			switch filepath.Ext(src) {
 			case ".jpg", ".jpeg":
 				if err = jpeg2webp(src, dst); err != nil {
@@ -1888,6 +1941,7 @@ func main() {
 		sb.Reset()
 		_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), banner.Photo)
 		dst = sb.String()
+		photos = append(photos, dst)
 		switch filepath.Ext(src) {
 		case ".jpg", ".jpeg":
 			if err = jpeg2webp(src, dst); err != nil {
@@ -1962,6 +2016,9 @@ func Log(level slog.Level, msg string, args ...any) {
 			"line", line,
 		)
 		slog.Error(msg, args...)
+		for i := range photos {
+			_ = os.RemoveAll(photos[i])
+		}
 	}
 }
 
