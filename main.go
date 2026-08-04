@@ -1348,28 +1348,41 @@ func main() {
 			updatedBy = adminID
 		}
 		productCategory.UpdatedBy = updatedBy
-		if productCategory.Photo != os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO") {
+		if productCategory.Photo == "kategori-produk-default.png" {
+			productCategory.Photo = "product-category-default.png"
+		} else {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/kategoriProduk/%s", os.Getenv("PHOTO_DIRECTORY"), productCategory.Photo)
 			if _, err = os.Stat(sb.String()); err != nil && errors.Is(err, os.ErrNotExist) {
-				productCategory.Photo = os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO")
+				productCategory.Photo = "product-category-default.png"
 			}
 		}
 		productCategories = append(productCategories, productCategory)
 	}
 	productCategories = append(productCategories, ProductCategory{
 		Name:      "Lain-Lain",
-		Photo:     os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO"),
+		Photo:     "product-category-default.png",
 		CreatedBy: adminID,
 		CreatedAt: now,
 		UpdatedBy: adminID,
 		UpdatedAt: now,
 	})
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/kategoriProduk/kategori-produk-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	src = sb.String()
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/product-category-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	dst = sb.String()
+	photos = append(photos, dst)
+	if err = copyFile(src, dst); err != nil {
+		Log(slog.LevelError, err.Error())
+		return
+	}
 	var defaultProductCategory ProductCategory
 	var bundledProductCategoryID uuid.UUID
 	mapProductCategoryIDs := map[int64]uuid.UUID{}
 	for i, productCategory := range productCategories {
-		if productCategory.Photo != os.Getenv("PRODUCT_CATEGORY_DEFAULT_PHOTO") {
+		if productCategory.Photo != "product-category-default.png" {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/kategoriProduk/%s", os.Getenv("PHOTO_DIRECTORY"), productCategory.Photo)
 			src = sb.String()
