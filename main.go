@@ -165,6 +165,7 @@ type (
 		ID                   uuid.UUID
 		OldID                int64
 		ProductCategoryID    uuid.UUID
+		ProductCategoryName  string
 		OldProductCategoryID int64
 		ProductType          int
 		Name,
@@ -1379,8 +1380,8 @@ func main() {
 		return
 	}
 	var defaultProductCategory ProductCategory
-	var bundledProductCategoryID uuid.UUID
-	mapProductCategoryIDs := map[int64]uuid.UUID{}
+	var bundledProductCategory ProductCategory
+	mapProductCategories := map[int64]ProductCategory{}
 	for i, productCategory := range productCategories {
 		if productCategory.Photo != "product-category-default.png" {
 			sb.Reset()
@@ -1438,9 +1439,9 @@ func main() {
 		}
 		productCategories[i] = productCategory
 		defaultProductCategory = productCategory
-		mapProductCategoryIDs[productCategory.OldID] = productCategory.ID
+		mapProductCategories[productCategory.OldID] = productCategory
 		if productCategory.Name == "Paket" {
-			bundledProductCategoryID = productCategory.ID
+			bundledProductCategory = productCategory
 		}
 	}
 	// standalone products
@@ -1498,11 +1499,12 @@ func main() {
 		if _, ok := mapProductNames[productName]; ok {
 			continue
 		}
-		productCategoryID, ok := mapProductCategoryIDs[product.OldProductCategoryID]
+		productCategory, ok := mapProductCategories[product.OldProductCategoryID]
 		if !ok {
-			productCategoryID = defaultProductCategory.ID
+			productCategory = defaultProductCategory
 		}
-		product.ProductCategoryID = productCategoryID
+		product.ProductCategoryID = productCategory.ID
+		product.ProductCategoryName = productCategory.Name
 		createdBy, ok := mapAdminIDs[product.OldCreatedBy]
 		if !ok {
 			createdBy = adminID
@@ -1573,6 +1575,7 @@ func main() {
 			`INSERT INTO products (
 				record_status
 				, product_category_id
+				, product_category_name
 				, product_type
 				, name
 				, photo
@@ -1584,10 +1587,11 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 			RETURNING id`,
 			RecordStatusActive,
 			product.ProductCategoryID,
+			product.ProductCategoryName,
 			product.ProductType,
 			product.Name,
 			product.Photo,
@@ -1779,7 +1783,8 @@ func main() {
 		if _, ok := mapProductNames[productName]; ok {
 			continue
 		}
-		product.ProductCategoryID = bundledProductCategoryID
+		product.ProductCategoryID = bundledProductCategory.ID
+		product.ProductCategoryName = bundledProductCategory.Name
 		createdBy, ok := mapAdminIDs[product.OldCreatedBy]
 		if !ok {
 			createdBy = adminID
@@ -1848,6 +1853,7 @@ func main() {
 			`INSERT INTO products (
 				record_status
 				, product_category_id
+				, product_category_name
 				, product_type
 				, name
 				, photo
@@ -1859,10 +1865,11 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 			RETURNING id`,
 			RecordStatusActive,
 			product.ProductCategoryID,
+			product.ProductCategoryName,
 			product.ProductType,
 			product.Name,
 			product.Photo,
