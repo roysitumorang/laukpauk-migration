@@ -186,10 +186,14 @@ type (
 	ProductVariant struct {
 		ID                      uuid.UUID
 		OldID                   int64
+		ProductCategoryID       uuid.UUID
+		ProductCategoryName     string
 		ProductID               uuid.UUID
 		OldProductID            int64
+		ProductName             string
+		ProductReadyStock       bool
 		StockUnit               string
-		Price                   int64
+		BasePrice               int64
 		DiscountType            int
 		DiscountRate            int64
 		DiscountMinimumQuantity int64
@@ -1538,7 +1542,7 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
-	mapProductIDs := map[int64]uuid.UUID{}
+	mapProducts := map[int64]Product{}
 	var params []any
 	for i, product := range products {
 		if product.Photo != "product-default.png" {
@@ -1608,7 +1612,7 @@ func main() {
 			return
 		}
 		products[i] = product
-		mapProductIDs[product.OldID] = product.ID
+		mapProducts[product.OldID] = product
 		params = append(params, product.OldID)
 	}
 	sb.Reset()
@@ -1655,7 +1659,7 @@ func main() {
 		if err = rows.Scan(
 			&productVariant.OldProductID,
 			&productVariant.StockUnit,
-			&productVariant.Price,
+			&productVariant.BasePrice,
 			&productVariant.DiscountRate,
 			&productVariant.Description,
 			&productVariant.OldCreatedBy,
@@ -1666,14 +1670,18 @@ func main() {
 			Log(slog.LevelError, err.Error())
 			return
 		}
-		productID, ok := mapProductIDs[productVariant.OldProductID]
+		product, ok := mapProducts[productVariant.OldProductID]
 		if !ok {
 			continue
 		}
-		if _, ok := mapProductVariantStockUnits[productID][productVariant.StockUnit]; ok {
+		if _, ok := mapProductVariantStockUnits[product.ID][productVariant.StockUnit]; ok {
 			continue
 		}
-		productVariant.ProductID = productID
+		productVariant.ProductCategoryID = product.ProductCategoryID
+		productVariant.ProductCategoryName = product.ProductCategoryName
+		productVariant.ProductID = product.ID
+		productVariant.ProductName = product.Name
+		productVariant.ProductReadyStock = product.ReadyStock
 		createdBy, ok := mapAdminIDs[productVariant.OldCreatedBy]
 		if !ok {
 			createdBy = adminID
@@ -1685,17 +1693,21 @@ func main() {
 		}
 		productVariant.UpdatedBy = updatedBy
 		productVariants = append(productVariants, productVariant)
-		if _, ok := mapProductVariantStockUnits[productID]; !ok {
-			mapProductVariantStockUnits[productID] = map[string]struct{}{}
+		if _, ok := mapProductVariantStockUnits[product.ID]; !ok {
+			mapProductVariantStockUnits[product.ID] = map[string]struct{}{}
 		}
-		mapProductVariantStockUnits[productID][productVariant.StockUnit] = struct{}{}
+		mapProductVariantStockUnits[product.ID][productVariant.StockUnit] = struct{}{}
 	}
 	for i, productVariant := range productVariants {
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO product_variants (
 				record_status
+				, product_category_id
+				, product_category_name
 				, product_id
+				, product_name
+				, product_ready_stock
 				, stock_unit
 				, base_price
 				, selling_price
@@ -1709,12 +1721,17 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 			RETURNING id`,
 			RecordStatusActive,
+			productVariant.ProductCategoryID,
+			productVariant.ProductCategoryName,
 			productVariant.ProductID,
+			productVariant.ProductName,
+			productVariant.ProductReadyStock,
 			productVariant.StockUnit,
-			productVariant.Price,
+			productVariant.BasePrice,
+			productVariant.BasePrice,
 			productVariant.DiscountType,
 			productVariant.DiscountRate,
 			productVariant.DiscountMinimumQuantity,
@@ -1889,7 +1906,11 @@ func main() {
 			ctx,
 			`INSERT INTO product_variants (
 				record_status
+				, product_category_id
+				, product_category_name
 				, product_id
+				, product_name
+				, product_ready_stock
 				, stock_unit
 				, base_price
 				, selling_price
@@ -1903,10 +1924,15 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
 			RecordStatusActive,
+			product.ProductCategoryID,
+			product.ProductCategoryName,
 			product.ID,
+			product.Name,
+			product.ReadyStock,
 			"paket",
+			product.BasePrice,
 			product.BasePrice,
 			0,
 			product.Discount,
