@@ -173,7 +173,7 @@ type (
 		Description string
 		ReadyStock,
 		Pinned bool
-		Hits int64
+		Hits,
 		BasePrice,
 		Discount int64
 		OldCreatedBy,
@@ -1654,6 +1654,7 @@ func main() {
 	defer rows.Close()
 	var productVariants []ProductVariant
 	mapProductVariantStockUnits := map[uuid.UUID]map[string]struct{}{}
+	mapProductLowestSellingPrices := map[uuid.UUID]int64{}
 	for rows.Next() {
 		var productVariant ProductVariant
 		if err = rows.Scan(
@@ -1697,6 +1698,11 @@ func main() {
 			mapProductVariantStockUnits[product.ID] = map[string]struct{}{}
 		}
 		mapProductVariantStockUnits[product.ID][productVariant.StockUnit] = struct{}{}
+		lowestSellingPrice, ok := mapProductLowestSellingPrices[product.ID]
+		if !ok || (lowestSellingPrice > 0 && productVariant.BasePrice < lowestSellingPrice) {
+			lowestSellingPrice = productVariant.BasePrice
+		}
+		mapProductLowestSellingPrices[product.ID] = lowestSellingPrice
 	}
 	for i, productVariant := range productVariants {
 		if err = tx.QueryRow(
@@ -1747,6 +1753,17 @@ func main() {
 			return
 		}
 		productVariants[i] = productVariant
+	}
+	for productID, lowestSellingPrice := range mapProductLowestSellingPrices {
+		if _, err = tx.Exec(
+			ctx,
+			"UPDATE products SET lowest_selling_price = $1 WHERE id = $2",
+			lowestSellingPrice,
+			productID,
+		); err != nil {
+			Log(slog.LevelError, err.Error())
+			return
+		}
 	}
 	// bundled products
 	rows, err = mysql.QueryContext(
@@ -1878,11 +1895,12 @@ func main() {
 				, ready_stock
 				, pinned
 				, hits
+				, lowest_selling_price
 				, created_by
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 			RETURNING id`,
 			RecordStatusActive,
 			product.ProductCategoryID,
@@ -1894,6 +1912,7 @@ func main() {
 			product.ReadyStock,
 			product.Pinned,
 			product.Hits,
+			product.BasePrice,
 			product.CreatedBy,
 			product.CreatedAt,
 			product.UpdatedBy,
