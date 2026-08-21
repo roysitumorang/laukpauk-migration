@@ -324,7 +324,9 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	var admins []Admin
 	mapUsernames := map[string]struct{}{}
 	mapConfirmationTokens := map[string]struct{}{}
@@ -546,7 +548,9 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	var buyers []Buyer
 	mapReferralCodes := map[string]struct{}{}
 	for rows.Next() {
@@ -816,7 +820,9 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	var articles []Article
 	for rows.Next() {
 		var article Article
@@ -930,7 +936,9 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	var blogs []Blog
 	for rows.Next() {
 		var blog Blog
@@ -1064,7 +1072,9 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	var landingPages []*LandingPage
 	mapLandingPageNameIndexes := map[string]int{}
 	mapLandingPages := map[string]string{}
@@ -1326,7 +1336,9 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	var productCategories []ProductCategory
 	for rows.Next() {
 		var productCategory ProductCategory
@@ -1478,7 +1490,9 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	var products []Product
 	mapProductNames := map[string]struct{}{}
 	for rows.Next() {
@@ -1651,7 +1665,9 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	var productVariants []ProductVariant
 	mapProductVariantStockUnits := map[uuid.UUID]map[string]struct{}{}
 	mapProductLowestSellingPrices := map[uuid.UUID]int64{}
@@ -1791,7 +1807,9 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	products = []Product{}
 	for rows.Next() {
 		var product Product
@@ -1992,7 +2010,9 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	var banners []Banner
 	for rows.Next() {
 		var banner Banner
@@ -2152,12 +2172,16 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer source.Close()
+	defer func() {
+		_ = source.Close()
+	}()
 	destination, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer destination.Close()
+	defer func() {
+		_ = destination.Close()
+	}()
 	if _, err = io.Copy(destination, source); err != nil {
 		return err
 	}
@@ -2172,7 +2196,9 @@ func jpeg2webp(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer input.Close()
+	defer func() {
+		_ = input.Close()
+	}()
 	image, err := jpeg.Decode(input)
 	if err != nil {
 		return err
@@ -2181,7 +2207,9 @@ func jpeg2webp(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer output.Close()
+	defer func() {
+		_ = output.Close()
+	}()
 	options, err := encoder.NewLossyEncoderOptions(encoder.PresetDefault, 80)
 	if err != nil {
 		return err
@@ -2197,7 +2225,9 @@ func png2webp(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer input.Close()
+	defer func() {
+		_ = input.Close()
+	}()
 	image, err := png.Decode(input)
 	if err != nil {
 		return err
@@ -2206,7 +2236,9 @@ func png2webp(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer output.Close()
+	defer func() {
+		_ = output.Close()
+	}()
 	options, err := encoder.NewLossyEncoderOptions(encoder.PresetDefault, 80)
 	if err != nil {
 		return err
