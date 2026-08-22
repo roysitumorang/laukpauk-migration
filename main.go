@@ -233,6 +233,34 @@ type (
 		OldUpdatedBy int64
 		UpdatedAt    time.Time
 	}
+	RecipeGuide struct {
+		OldRecipeID int64
+		Instruction string
+	}
+	RecipeItem struct {
+		OldRecipeID  int64
+		ProductID    uuid.UUID
+		OldProductID int64
+		Dose,
+		Note string
+	}
+	Recipe struct {
+		ID    uuid.UUID
+		OldID int64
+		Name,
+		Photo,
+		Description,
+		InstagramLink,
+		FacebookLink string
+		CreatedBy    uuid.UUID
+		OldCreatedBy int64
+		CreatedAt    time.Time
+		UpdatedBy    uuid.UUID
+		OldUpdatedBy int64
+		UpdatedAt    time.Time
+		Guides       []RecipeGuide
+		Items        []RecipeItem
+	}
 )
 
 func main() {
@@ -2098,6 +2126,257 @@ func main() {
 			return
 		}
 		banners[i] = banner
+	}
+	// recipes
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/resep/resep-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	src = sb.String()
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/recipe-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	dst = sb.String()
+	photos = append(photos, dst)
+	if err = copyFile(src, dst); err != nil {
+		Log(slog.LevelError, err.Error())
+		return
+	}
+	rows, err = mysql.QueryContext(
+		ctx,
+		`SELECT
+			id
+			, foto
+			, nama
+			, keterangan
+			, igLink
+			, fbLink
+			, createdBy
+			, createdAt
+			, updatedBy
+			, updatedAt
+		FROM resep
+		ORDER BY id`,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		Log(slog.LevelError, err.Error())
+		return
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+	var recipes []Recipe
+	mapRecipeOldIDs := map[int64]int{}
+	for rows.Next() {
+		var recipe Recipe
+		if err = rows.Scan(
+			&recipe.OldID,
+			&recipe.Photo,
+			&recipe.Name,
+			&recipe.Description,
+			&recipe.InstagramLink,
+			&recipe.FacebookLink,
+			&recipe.OldCreatedBy,
+			&recipe.CreatedAt,
+			&recipe.OldUpdatedBy,
+			&recipe.UpdatedAt,
+		); err != nil {
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		recipes = append(recipes, recipe)
+		mapRecipeOldIDs[recipe.OldID] = len(recipes) - 1
+	}
+	rows, err = mysql.QueryContext(
+		ctx,
+		`SELECT
+			idResep
+			, langkah
+		FROM resep_cara_buat
+		ORDER BY id`,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		Log(slog.LevelError, err.Error())
+		return
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+	for rows.Next() {
+		var recipeGuide RecipeGuide
+		if err = rows.Scan(
+			&recipeGuide.OldRecipeID,
+			&recipeGuide.Instruction,
+		); err != nil {
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		if i, ok := mapRecipeOldIDs[recipeGuide.OldRecipeID]; ok {
+			recipes[i].Guides = append(recipes[i].Guides, recipeGuide)
+		}
+	}
+	rows, err = mysql.QueryContext(
+		ctx,
+		`SELECT
+			idResep
+			, idProduk
+			, takaran
+			, catatan
+		FROM resep_item
+		ORDER BY id`,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		Log(slog.LevelError, err.Error())
+		return
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+	for rows.Next() {
+		var recipeItem RecipeItem
+		if err = rows.Scan(
+			&recipeItem.OldRecipeID,
+			&recipeItem.OldProductID,
+			&recipeItem.Dose,
+			&recipeItem.Note,
+		); err != nil {
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		if i, ok := mapRecipeOldIDs[recipeItem.OldRecipeID]; ok {
+			recipes[i].Items = append(recipes[i].Items, recipeItem)
+		}
+	}
+	for i, recipe := range recipes {
+		createdBy, ok := mapAdminIDs[recipe.OldCreatedBy]
+		if !ok {
+			createdBy = adminID
+		}
+		recipe.CreatedBy = createdBy
+		updatedBy, ok := mapAdminIDs[recipe.OldUpdatedBy]
+		if !ok {
+			updatedBy = adminID
+		}
+		recipe.UpdatedBy = updatedBy
+		sb.Reset()
+		_, _ = fmt.Fprintf(&sb, "%s/resep/%s", os.Getenv("PHOTO_DIRECTORY"), recipe.Photo)
+		src = sb.String()
+		sb.Reset()
+		_, _ = fmt.Fprintf(&sb, "%s.webp", uuid.NewV7().String())
+		recipe.Photo = sb.String()
+		sb.Reset()
+		_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), recipe.Photo)
+		dst = sb.String()
+		photos = append(photos, dst)
+		switch filepath.Ext(src) {
+		case ".jpg", ".jpeg":
+			if err = jpeg2webp(src, dst); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+		case ".png":
+			if err = png2webp(src, dst); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+		case ".webp":
+			if err = copyFile(src, dst); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+		}
+		if err = tx.QueryRow(
+			ctx,
+			`INSERT INTO recipes (
+				record_status
+				, name
+				, photo
+				, description
+				, instagram_link
+				, facebook_link
+				, created_by
+				, created_at
+				, updated_by
+				, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			RETURNING id`,
+			RecordStatusActive,
+			recipe.Name,
+			recipe.Photo,
+			recipe.Description,
+			recipe.InstagramLink,
+			recipe.FacebookLink,
+			recipe.CreatedBy,
+			recipe.CreatedAt,
+			recipe.UpdatedBy,
+			recipe.UpdatedAt,
+		).Scan(&recipe.ID); err != nil {
+			Log(slog.LevelError, err.Error())
+			return
+		}
+		for _, recipeGuide := range recipe.Guides {
+			if _, err = tx.Exec(
+				ctx,
+				`INSERT INTO recipe_guides (
+					record_status
+					, recipe_id
+					, instruction
+					, created_by
+					, created_at
+					, updated_by
+					, updated_at
+				) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+				RecordStatusActive,
+				recipe.ID,
+				recipeGuide.Instruction,
+				recipe.CreatedBy,
+				recipe.CreatedAt,
+				recipe.UpdatedBy,
+				recipe.UpdatedAt,
+			); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+		}
+		for _, recipeItem := range recipe.Items {
+			product, ok := mapProducts[recipeItem.OldProductID]
+			if !ok {
+				continue
+			}
+			if _, err = tx.Exec(
+				ctx,
+				`INSERT INTO recipe_items (
+					record_status
+					, recipe_id
+					, product_id
+					, dose
+					, note
+					, created_by
+					, created_at
+					, updated_by
+					, updated_at
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+				RecordStatusActive,
+				recipe.ID,
+				product.ID,
+				recipeItem.Dose,
+				recipeItem.Note,
+				recipe.CreatedBy,
+				recipe.CreatedAt,
+				recipe.UpdatedBy,
+				recipe.UpdatedAt,
+			); err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+		}
+		recipes[i] = recipe
 	}
 	if err = tx.Commit(ctx); err != nil {
 		Log(slog.LevelError, err.Error())
