@@ -2357,18 +2357,20 @@ func main() {
 					, product_id
 					, product_name
 					, product_photo
+					, product_ready_stock
 					, dose
 					, note
 					, created_by
 					, created_at
 					, updated_by
 					, updated_at
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
 				RecordStatusActive,
 				recipe.ID,
 				product.ID,
 				product.Name,
 				product.Photo,
+				product.ReadyStock,
 				recipeItem.Dose,
 				recipeItem.Note,
 				recipe.CreatedBy,
