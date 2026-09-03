@@ -28,6 +28,8 @@ import (
 	"github.com/kolesa-team/go-webp/webp"
 	"github.com/nyaruka/phonenumbers"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var (
@@ -567,6 +569,8 @@ func main() {
 			, updatedBy
 			, updatedAt
 		FROM user
+		WHERE nama NOT LIKE '%laukpauk%'
+			AND nama NOT LIKE '%toko%'
 		ORDER BY id`,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -581,6 +585,7 @@ func main() {
 	}()
 	var buyers []Buyer
 	mapReferralCodes := map[string]struct{}{}
+	caser := cases.Title(language.Und, cases.NoLower)
 	for rows.Next() {
 		var buyer Buyer
 		if err = rows.Scan(
@@ -613,6 +618,7 @@ func main() {
 			}
 			buyer.ReferralCode = strings.ToUpper(RandomString(6))
 		}
+		buyer.Name = caser.String(buyer.Name)
 		if buyer.Username == "" {
 			buyer.Username = buyer.Name
 		}
