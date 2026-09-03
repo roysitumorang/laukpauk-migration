@@ -551,6 +551,14 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
+	sb.Reset()
+	_, _ = fmt.Fprintf(&sb, "%s/seller-default.png", os.Getenv("PHOTO_DIRECTORY"))
+	dst = sb.String()
+	photos = append(photos, dst)
+	if err = copyFile(src, dst); err != nil {
+		Log(slog.LevelError, err.Error())
+		return
+	}
 	rows, err = mysql.QueryContext(
 		ctx,
 		`SELECT
@@ -737,7 +745,7 @@ func main() {
 				, updated_at
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			RETURNING id`,
-			1,
+			2,
 			0,
 			buyer.Name,
 			buyer.VerificationCode,
