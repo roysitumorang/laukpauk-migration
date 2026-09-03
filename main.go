@@ -538,6 +538,14 @@ func main() {
 		}
 		admins[i] = admin
 	}
+	var companyID uuid.UUID
+	if err = tx.QueryRow(
+		ctx,
+		`SELECT id FROM companies`,
+	).Scan(&companyID); err != nil {
+		Log(slog.LevelError, err.Error())
+		return
+	}
 	// buyers
 	sb.Reset()
 	_, _ = fmt.Fprintf(&sb, "%s/user/user-default.png", os.Getenv("PHOTO_DIRECTORY"))
@@ -725,7 +733,8 @@ func main() {
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO users (
-				user_type
+				company_id
+				, user_type
 				, user_status
 				, name
 				, confirmation_token
@@ -735,8 +744,9 @@ func main() {
 				, photo
 				, created_at
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			RETURNING id`,
+			companyID,
 			2,
 			0,
 			buyer.Name,
