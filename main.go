@@ -74,8 +74,7 @@ type (
 		Photo,
 		Name,
 		Address,
-		Username,
-		Password string
+		Username string
 		MobilePhone      *string
 		OldReferrerID    *int64
 		ReferrerID       *uuid.UUID
@@ -677,12 +676,6 @@ func main() {
 				}
 			}
 		}
-		hashByte, err := bcrypt.GenerateFromPassword(temporaryPassword, bcrypt.MinCost)
-		if err != nil {
-			Log(slog.LevelError, err.Error())
-			return
-		}
-		buyer.Password = ByteSlice2String(hashByte)
 		if buyer.OldCreatedBy != nil && *buyer.OldCreatedBy == 0 {
 			buyer.OldCreatedBy = nil
 		}
@@ -739,11 +732,10 @@ func main() {
 				, confirmed_at
 				, mobile_phone
 				, username
-				, encrypted_password
 				, photo
 				, created_at
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			RETURNING id`,
 			2,
 			0,
@@ -752,7 +744,6 @@ func main() {
 			confirmedAt,
 			buyer.MobilePhone,
 			buyer.Username,
-			buyer.Password,
 			buyer.Photo,
 			buyer.CreatedAt,
 			buyer.UpdatedAt,
