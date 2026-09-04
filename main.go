@@ -481,24 +481,24 @@ func main() {
 				Log(slog.LevelError, err.Error())
 				return
 			}
-			var adminType int
+			var adminLevel int
 			switch admin.Role {
 			case "superadmin":
-				adminType = 1
+				adminLevel = 0
 			case "admin":
 				fallthrough
 			default:
-				adminType = 0
+				adminLevel = 1
 			}
 			if err = tx.QueryRow(
 				ctx,
 				`INSERT INTO admins (
 					user_id
-					, admin_type
+					, admin_level
 				) VALUES ($1, $2)
 				RETURNING id`,
 				admin.UserID,
-				adminType,
+				adminLevel,
 			).Scan(&admin.ID); err != nil {
 				Log(slog.LevelError, err.Error())
 				return
