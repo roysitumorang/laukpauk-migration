@@ -737,20 +737,22 @@ func main() {
 				, user_type
 				, user_status
 				, name
-				, confirmation_token
-				, confirmed_at
+				, mobile_phone_confirmation_token
+				, mobile_phone_confirmation_sent_at
+				, mobile_phone_confirmed_at
 				, mobile_phone
 				, username
 				, photo
 				, created_at
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			RETURNING id`,
 			companyID,
 			2,
 			0,
 			buyer.Name,
 			buyer.VerificationCode,
+			buyer.CreatedAt,
 			confirmedAt,
 			buyer.MobilePhone,
 			buyer.Username,
