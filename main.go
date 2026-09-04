@@ -49,9 +49,8 @@ const (
 
 type (
 	Admin struct {
-		ID     uuid.UUID
-		OldID  int64
-		UserID uuid.UUID
+		ID    uuid.UUID
+		OldID int64
 		Role,
 		Photo,
 		Name,
@@ -67,9 +66,8 @@ type (
 		UpdatedAt time.Time
 	}
 	Buyer struct {
-		ID     uuid.UUID
-		OldID  int64
-		UserID uuid.UUID
+		ID    uuid.UUID
+		OldID int64
 		ReferralCode,
 		Photo,
 		Name,
@@ -420,33 +418,22 @@ func main() {
 		}
 		admins = append(admins, admin)
 	}
-	var adminID, adminUserID uuid.UUID
+	var adminID uuid.UUID
 	mapAdminIDs := map[int64]uuid.UUID{}
 	mapUserIDs := map[int64]uuid.UUID{}
 	for i, admin := range admins {
 		if admin.Email == "benni.surbakti@gmail.com" {
 			if err = tx.QueryRow(
 				ctx,
-				`SELECT
-					a.id
-					, a.user_id
-				FROM admins a
-				WHERE EXISTS(
-					SELECT 1
-					FROM users u
-					WHERE u.id = a.user_id
-						AND u.email = $1
-				)`,
+				`SELECT id
+				FROM users
+				WHERE email = $1`,
 				admin.Email,
-			).Scan(
-				&admin.ID,
-				&admin.UserID,
-			); err != nil {
+			).Scan(&admin.ID); err != nil {
 				Log(slog.LevelError, err.Error())
 				return
 			}
 			adminID = admin.ID
-			adminUserID = admin.UserID
 		} else {
 			if err = tx.QueryRow(
 				ctx,
@@ -477,7 +464,7 @@ func main() {
 				admin.Photo,
 				admin.CreatedAt,
 				admin.UpdatedAt,
-			).Scan(&admin.UserID); err != nil {
+			).Scan(&admin.ID); err != nil {
 				Log(slog.LevelError, err.Error())
 				return
 			}
@@ -490,36 +477,36 @@ func main() {
 			default:
 				adminLevel = 1
 			}
-			if err = tx.QueryRow(
+			if _, err = tx.Exec(
 				ctx,
 				`INSERT INTO admins (
-					user_id
+					id
 					, admin_level
 				) VALUES ($1, $2)
 				RETURNING id`,
-				admin.UserID,
+				admin.ID,
 				adminLevel,
-			).Scan(&admin.ID); err != nil {
+			); err != nil {
 				Log(slog.LevelError, err.Error())
 				return
 			}
 		}
 		mapAdminIDs[admin.OldID] = admin.ID
-		mapUserIDs[admin.OldID] = admin.UserID
+		mapUserIDs[admin.OldID] = admin.ID
 		admins[i] = admin
 	}
 	for i, admin := range admins {
 		if admin.OldCreatedBy != nil {
 			createdBy, ok := mapUserIDs[*admin.OldCreatedBy]
 			if !ok {
-				createdBy = adminUserID
+				createdBy = adminID
 			}
 			admin.CreatedBy = &createdBy
 		}
 		if admin.OldUpdatedBy != nil {
 			updatedBy, ok := mapUserIDs[*admin.OldUpdatedBy]
 			if !ok {
-				updatedBy = adminUserID
+				updatedBy = adminID
 			}
 			admin.UpdatedBy = &updatedBy
 		}
@@ -531,7 +518,7 @@ func main() {
 			WHERE id = $3`,
 			admin.CreatedBy,
 			admin.UpdatedBy,
-			admin.UserID,
+			admin.ID,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
 			return
@@ -759,22 +746,21 @@ func main() {
 			buyer.Photo,
 			buyer.CreatedAt,
 			buyer.UpdatedAt,
-		).Scan(&buyer.UserID); err != nil {
+		).Scan(&buyer.ID); err != nil {
 			Log(slog.LevelError, err.Error())
 			return
 		}
-		if err = tx.QueryRow(
+		if _, err = tx.Exec(
 			ctx,
 			`INSERT INTO buyers (
-				user_id
+				id
 				, referral_code
 				, address
-			) VALUES ($1, $2, $3)
-			RETURNING id`,
-			buyer.UserID,
+			) VALUES ($1, $2, $3)`,
+			buyer.ID,
 			buyer.ReferralCode,
 			buyer.Address,
-		).Scan(&buyer.ID); err != nil {
+		); err != nil {
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -785,14 +771,14 @@ func main() {
 		if buyer.OldCreatedBy != nil {
 			createdBy, ok := mapUserIDs[*buyer.OldCreatedBy]
 			if !ok {
-				createdBy = adminUserID
+				createdBy = adminID
 			}
 			buyer.CreatedBy = &createdBy
 		}
 		if buyer.OldUpdatedBy != nil {
 			updatedBy, ok := mapUserIDs[*buyer.OldUpdatedBy]
 			if !ok {
-				updatedBy = adminUserID
+				updatedBy = adminID
 			}
 			buyer.UpdatedBy = &updatedBy
 		}
@@ -810,7 +796,7 @@ func main() {
 				WHERE id = $3`,
 				buyer.CreatedBy,
 				buyer.UpdatedBy,
-				buyer.UserID,
+				buyer.ID,
 			); err != nil {
 				Log(slog.LevelError, err.Error())
 				return
