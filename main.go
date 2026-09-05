@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -27,7 +28,7 @@ import (
 	"github.com/kolesa-team/go-webp/encoder"
 	"github.com/kolesa-team/go-webp/webp"
 	"github.com/nyaruka/phonenumbers"
-	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/argon2"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -299,7 +300,7 @@ func main() {
 		Log(slog.LevelError, err.Error())
 		return
 	}
-	temporaryPassword := String2ByteSlice(os.Getenv("TEMPORARY_PASSWORD"))
+	temporaryPassword := os.Getenv("TEMPORARY_PASSWORD")
 	tx, err := pg.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: pgx.Serializable,
 	})
@@ -404,12 +405,14 @@ func main() {
 			_, _ = sb.WriteString(RandomNumber(1))
 			admin.MobilePhone = sb.String()
 		}
-		hashByte, err := bcrypt.GenerateFromPassword(temporaryPassword, bcrypt.MinCost)
+		encryptedPassword, err := hashPassword(&sb, temporaryPassword)
 		if err != nil {
 			Log(slog.LevelError, err.Error())
 			return
 		}
-		admin.Password = ByteSlice2String(hashByte)
+		if encryptedPassword != nil {
+			admin.Password = *encryptedPassword
+		}
 		if admin.OldCreatedBy != nil && *admin.OldCreatedBy == 0 {
 			admin.OldCreatedBy = nil
 		}
@@ -2535,4 +2538,62 @@ func png2webp(src, dst string) error {
 		return err
 	}
 	return os.Chmod(dst, 0644)
+}
+
+var defaultArgon2Params = &argon2Params{
+	SaltLength: 16,
+	KeyLength:  32,
+	Iterations: 1,
+	Memory:     64 * 1024,
+	Threads:    uint8(runtime.NumCPU()),
+}
+
+type argon2Params struct {
+	// length of salt in bytes
+	SaltLength uint32
+
+	// length of derived key
+	KeyLength uint32
+
+	// number of iterations
+	Iterations uint32
+
+	// memory cost in KiB
+	Memory uint32
+
+	// number of parallel threads
+	Threads uint8
+}
+
+func hashPassword(sb *strings.Builder, password string, params ...*argon2Params) (*string, error) {
+	sb.Reset()
+	param := defaultArgon2Params
+	if len(params) > 0 {
+		param = params[0]
+	}
+	salt := make([]byte, param.SaltLength)
+	_, err := rand.Read(salt)
+	if err != nil {
+		return nil, err
+	}
+	key := argon2.IDKey(
+		String2ByteSlice(password),
+		salt,
+		param.Iterations,
+		param.Memory,
+		param.Threads,
+		param.KeyLength,
+	)
+	b64Enc := base64.RawStdEncoding
+	_, _ = fmt.Fprintf(
+		sb,
+		"$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
+		argon2.Version,
+		param.Memory,
+		param.Iterations,
+		param.Threads,
+		b64Enc.EncodeToString(salt),
+		b64Enc.EncodeToString(key),
+	)
+	return new(sb.String()), nil
 }
