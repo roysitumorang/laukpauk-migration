@@ -80,10 +80,6 @@ type (
 		VerificationCode *string
 		IsVerified       int
 		VerifiedAt       *time.Time
-		CreatedBy,
-		UpdatedBy *uuid.UUID
-		OldCreatedBy,
-		OldUpdatedBy *int64
 		CreatedAt,
 		UpdatedAt time.Time
 	}
@@ -94,10 +90,6 @@ type (
 		Body,
 		Photo,
 		Link string
-		CreatedBy,
-		UpdatedBy uuid.UUID
-		OldCreatedBy,
-		OldUpdatedBy int64
 		CreatedAt,
 		UpdatedAt time.Time
 	}
@@ -108,10 +100,6 @@ type (
 		Body,
 		Slug,
 		Photo string
-		CreatedBy,
-		UpdatedBy uuid.UUID
-		OldCreatedBy,
-		OldUpdatedBy int64
 		CreatedAt,
 		UpdatedAt time.Time
 	}
@@ -120,10 +108,6 @@ type (
 		OldName,
 		Name string
 		CustomAttributes map[string]string
-		CreatedBy,
-		UpdatedBy uuid.UUID
-		OldCreatedBy,
-		OldUpdatedBy int64
 		CreatedAt,
 		UpdatedAt *time.Time
 		Items []*LandingPageItem
@@ -154,10 +138,6 @@ type (
 		Name,
 		Description,
 		Photo string
-		OldCreatedBy,
-		OldUpdatedBy int64
-		CreatedBy,
-		UpdatedBy uuid.UUID
 		CreatedAt,
 		UpdatedAt time.Time
 	}
@@ -176,10 +156,6 @@ type (
 		Hits,
 		BasePrice,
 		Discount int64
-		OldCreatedBy,
-		OldUpdatedBy int64
-		CreatedBy,
-		UpdatedBy uuid.UUID
 		CreatedAt,
 		UpdatedAt time.Time
 	}
@@ -200,10 +176,6 @@ type (
 		DiscountAmount          int64
 		SalePrice               int64
 		Description             string
-		OldCreatedBy,
-		OldUpdatedBy int64
-		CreatedBy,
-		UpdatedBy uuid.UUID
 		CreatedAt,
 		UpdatedAt time.Time
 	}
@@ -225,13 +197,9 @@ type (
 		Name,
 		Description,
 		Photo string
-		Visible      bool
-		CreatedBy    uuid.UUID
-		OldCreatedBy int64
-		CreatedAt    time.Time
-		UpdatedBy    uuid.UUID
-		OldUpdatedBy int64
-		UpdatedAt    time.Time
+		Visible   bool
+		CreatedAt time.Time
+		UpdatedAt time.Time
 	}
 	RecipeGuide struct {
 		OldRecipeID int64
@@ -252,14 +220,10 @@ type (
 		Description,
 		InstagramLink,
 		FacebookLink string
-		CreatedBy    uuid.UUID
-		OldCreatedBy int64
-		CreatedAt    time.Time
-		UpdatedBy    uuid.UUID
-		OldUpdatedBy int64
-		UpdatedAt    time.Time
-		Guides       []RecipeGuide
-		Items        []RecipeItem
+		CreatedAt time.Time
+		UpdatedAt time.Time
+		Guides    []RecipeGuide
+		Items     []RecipeItem
 	}
 )
 
@@ -423,13 +387,12 @@ func main() {
 	}
 	var adminID uuid.UUID
 	mapAdminIDs := map[int64]uuid.UUID{}
-	mapUserIDs := map[int64]uuid.UUID{}
 	for i, admin := range admins {
 		if admin.Email == "benni.surbakti@gmail.com" {
 			if err = tx.QueryRow(
 				ctx,
 				`SELECT id
-				FROM users
+				FROM admins
 				WHERE email = $1`,
 				admin.Email,
 			).Scan(&admin.ID); err != nil {
@@ -438,11 +401,20 @@ func main() {
 			}
 			adminID = admin.ID
 		} else {
+			var adminLevel int
+			switch admin.Role {
+			case "superadmin":
+				adminLevel = 0
+			case "admin":
+				fallthrough
+			default:
+				adminLevel = 1
+			}
 			if err = tx.QueryRow(
 				ctx,
-				`INSERT INTO users (
-					user_type
-					, user_status
+				`INSERT INTO admins (
+					status
+					, admin_level
 					, name
 					, mobile_phone_confirmed_at
 					, mobile_phone
@@ -456,7 +428,7 @@ func main() {
 				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 				RETURNING id`,
 				0,
-				0,
+				adminLevel,
 				admin.Name,
 				admin.UpdatedAt,
 				admin.MobilePhone,
@@ -471,43 +443,20 @@ func main() {
 				Log(slog.LevelError, err.Error())
 				return
 			}
-			var adminLevel int
-			switch admin.Role {
-			case "superadmin":
-				adminLevel = 0
-			case "admin":
-				fallthrough
-			default:
-				adminLevel = 1
-			}
-			if _, err = tx.Exec(
-				ctx,
-				`INSERT INTO admins (
-					id
-					, admin_level
-				) VALUES ($1, $2)
-				RETURNING id`,
-				admin.ID,
-				adminLevel,
-			); err != nil {
-				Log(slog.LevelError, err.Error())
-				return
-			}
 		}
 		mapAdminIDs[admin.OldID] = admin.ID
-		mapUserIDs[admin.OldID] = admin.ID
 		admins[i] = admin
 	}
 	for i, admin := range admins {
 		if admin.OldCreatedBy != nil {
-			createdBy, ok := mapUserIDs[*admin.OldCreatedBy]
+			createdBy, ok := mapAdminIDs[*admin.OldCreatedBy]
 			if !ok {
 				createdBy = adminID
 			}
 			admin.CreatedBy = &createdBy
 		}
 		if admin.OldUpdatedBy != nil {
-			updatedBy, ok := mapUserIDs[*admin.OldUpdatedBy]
+			updatedBy, ok := mapAdminIDs[*admin.OldUpdatedBy]
 			if !ok {
 				updatedBy = adminID
 			}
@@ -515,7 +464,7 @@ func main() {
 		}
 		if _, err = tx.Exec(
 			ctx,
-			`UPDATE users SET
+			`UPDATE admins SET
 				created_by = $1
 				, updated_by = $2
 			WHERE id = $3`,
@@ -528,11 +477,11 @@ func main() {
 		}
 		admins[i] = admin
 	}
-	var companyID uuid.UUID
+	var sellerID, companyID uuid.UUID
 	if err = tx.QueryRow(
 		ctx,
-		`SELECT id FROM companies`,
-	).Scan(&companyID); err != nil {
+		`SELECT id, company_id FROM sellers`,
+	).Scan(&sellerID, &companyID); err != nil {
 		Log(slog.LevelError, err.Error())
 		return
 	}
@@ -569,9 +518,7 @@ func main() {
 			, referencedBy
 			, verifyCode
 			, isVerified
-			, createdBy
 			, createdAt
-			, updatedBy
 			, updatedAt
 		FROM user
 		WHERE nama NOT LIKE '%laukpauk%'
@@ -604,9 +551,7 @@ func main() {
 			&buyer.OldReferrerID,
 			&buyer.VerificationCode,
 			&buyer.IsVerified,
-			&buyer.OldCreatedBy,
 			&buyer.CreatedAt,
-			&buyer.OldUpdatedBy,
 			&buyer.UpdatedAt,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -674,12 +619,6 @@ func main() {
 				}
 			}
 		}
-		if buyer.OldCreatedBy != nil && *buyer.OldCreatedBy == 0 {
-			buyer.OldCreatedBy = nil
-		}
-		if buyer.OldUpdatedBy != nil && *buyer.OldUpdatedBy == 0 {
-			buyer.OldUpdatedBy = nil
-		}
 		buyers = append(buyers, buyer)
 	}
 	mapBuyers := map[int64]Buyer{}
@@ -722,10 +661,9 @@ func main() {
 		}
 		if err = tx.QueryRow(
 			ctx,
-			`INSERT INTO users (
+			`INSERT INTO buyers (
 				company_id
-				, user_type
-				, user_status
+				, status
 				, name
 				, mobile_phone_confirmation_token
 				, mobile_phone_confirmation_sent_at
@@ -733,12 +671,13 @@ func main() {
 				, mobile_phone
 				, username
 				, photo
+				, referral_code
+				, address
 				, created_at
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 			RETURNING id`,
 			companyID,
-			2,
 			0,
 			buyer.Name,
 			buyer.VerificationCode,
@@ -747,23 +686,11 @@ func main() {
 			buyer.MobilePhone,
 			buyer.Username,
 			buyer.Photo,
+			buyer.ReferralCode,
+			buyer.Address,
 			buyer.CreatedAt,
 			buyer.UpdatedAt,
 		).Scan(&buyer.ID); err != nil {
-			Log(slog.LevelError, err.Error())
-			return
-		}
-		if _, err = tx.Exec(
-			ctx,
-			`INSERT INTO buyers (
-				id
-				, referral_code
-				, address
-			) VALUES ($1, $2, $3)`,
-			buyer.ID,
-			buyer.ReferralCode,
-			buyer.Address,
-		); err != nil {
 			Log(slog.LevelError, err.Error())
 			return
 		}
@@ -771,38 +698,9 @@ func main() {
 		mapBuyers[buyer.OldID] = buyer
 	}
 	for i, buyer := range buyers {
-		if buyer.OldCreatedBy != nil {
-			createdBy, ok := mapUserIDs[*buyer.OldCreatedBy]
-			if !ok {
-				createdBy = adminID
-			}
-			buyer.CreatedBy = &createdBy
-		}
-		if buyer.OldUpdatedBy != nil {
-			updatedBy, ok := mapUserIDs[*buyer.OldUpdatedBy]
-			if !ok {
-				updatedBy = adminID
-			}
-			buyer.UpdatedBy = &updatedBy
-		}
 		if buyer.OldReferrerID != nil {
-			if user, ok := mapBuyers[*buyer.OldReferrerID]; ok {
-				buyer.ReferrerID = &user.ID
-			}
-		}
-		if buyer.CreatedBy != nil || buyer.UpdatedBy != nil {
-			if _, err = tx.Exec(
-				ctx,
-				`UPDATE users SET
-					created_by = $1
-					, updated_by = $2
-				WHERE id = $3`,
-				buyer.CreatedBy,
-				buyer.UpdatedBy,
-				buyer.ID,
-			); err != nil {
-				Log(slog.LevelError, err.Error())
-				return
+			if buyer, ok := mapBuyers[*buyer.OldReferrerID]; ok {
+				buyer.ReferrerID = &buyer.ID
 			}
 		}
 		if buyer.ReferrerID != nil {
@@ -840,9 +738,7 @@ func main() {
 			, isi
 			, foto
 			, link
-			, createdBy
 			, createdAt
-			, updatedBy
 			, updatedAt
 		FROM artikel
 		ORDER BY id`,
@@ -866,9 +762,7 @@ func main() {
 			&article.Body,
 			&article.Photo,
 			&article.Link,
-			&article.OldCreatedBy,
 			&article.CreatedAt,
-			&article.OldUpdatedBy,
 			&article.UpdatedAt,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -877,16 +771,6 @@ func main() {
 		articles = append(articles, article)
 	}
 	for i, article := range articles {
-		createdBy, ok := mapAdminIDs[article.OldCreatedBy]
-		if !ok {
-			createdBy = adminID
-		}
-		article.CreatedBy = createdBy
-		updatedBy, ok := mapAdminIDs[article.OldUpdatedBy]
-		if !ok {
-			updatedBy = adminID
-		}
-		article.UpdatedBy = updatedBy
 		if article.Photo == "artikel-default.png" {
 			article.Photo = "article-default.png"
 		} else {
@@ -937,9 +821,9 @@ func main() {
 			article.Body,
 			article.Photo,
 			article.Link,
-			article.CreatedBy,
+			sellerID,
 			article.CreatedAt,
-			article.UpdatedBy,
+			sellerID,
 			article.UpdatedAt,
 		).Scan(&article.ID); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -956,9 +840,7 @@ func main() {
 			, title
 			, content
 			, permalink
-			, createdBy
 			, createdAt
-			, COALESCE(updatedBy, createdBy)
 			, COALESCE(updatedAt, createdAt)
 		FROM blog
 		ORDER BY id`,
@@ -982,9 +864,7 @@ func main() {
 			&blog.Subject,
 			&blog.Body,
 			&blog.Slug,
-			&blog.OldCreatedBy,
 			&blog.CreatedAt,
-			&blog.OldUpdatedBy,
 			&blog.UpdatedAt,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -993,16 +873,6 @@ func main() {
 		blogs = append(blogs, blog)
 	}
 	for i, blog := range blogs {
-		createdBy, ok := mapAdminIDs[blog.OldCreatedBy]
-		if !ok {
-			createdBy = adminID
-		}
-		blog.CreatedBy = createdBy
-		updatedBy, ok := mapAdminIDs[blog.OldUpdatedBy]
-		if !ok {
-			updatedBy = adminID
-		}
-		blog.UpdatedBy = updatedBy
 		sb.Reset()
 		_, _ = fmt.Fprintf(&sb, "%s/blog/%s", os.Getenv("PHOTO_DIRECTORY"), blog.Photo)
 		src = sb.String()
@@ -1049,9 +919,9 @@ func main() {
 			blog.Body,
 			blog.Slug,
 			blog.Photo,
-			blog.CreatedBy,
+			sellerID,
 			blog.CreatedAt,
-			blog.UpdatedBy,
+			sellerID,
 			blog.UpdatedAt,
 		).Scan(&blog.ID); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -1090,9 +960,7 @@ func main() {
 			COALESCE(p.name, CASE WHEN c.parent = '_halamanBantuan' THEN c.parent END)
 			, c.elementKey
 			, c.elementValue
-			, COALESCE(p.createdBy, 0)
 			, p.createdAt
-			, COALESCE(p.updatedBy, 0)
 			, COALESCE(p.updatedAt, p.createdAt)
 		FROM homepage p
 		RIGHT JOIN homepage_element c ON p.id = CASE WHEN c.parent = '_halamanBantuan' THEN NULL ELSE c.parent END
@@ -1118,8 +986,6 @@ func main() {
 			oldLandingPageName,
 			elementKey,
 			elementValue string
-			oldCreatedBy,
-			oldUpdatedBy int64
 			createdAt,
 			updatedAt *time.Time
 		)
@@ -1127,9 +993,7 @@ func main() {
 			&oldLandingPageName,
 			&elementKey,
 			&elementValue,
-			&oldCreatedBy,
 			&createdAt,
-			&oldUpdatedBy,
 			&updatedAt,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -1169,9 +1033,7 @@ func main() {
 					OldName:          mapLandingPages[landingPageName],
 					Name:             landingPageName,
 					CustomAttributes: map[string]string{},
-					OldCreatedBy:     oldCreatedBy,
 					CreatedAt:        createdAt,
-					OldUpdatedBy:     oldUpdatedBy,
 					UpdatedAt:        updatedAt,
 				},
 			)
@@ -1221,16 +1083,6 @@ func main() {
 		landingPages[index] = landingPage
 	}
 	for i, landingPage := range landingPages {
-		createdBy, ok := mapAdminIDs[landingPage.OldCreatedBy]
-		if !ok {
-			createdBy = adminID
-		}
-		landingPage.CreatedBy = createdBy
-		updatedBy, ok := mapAdminIDs[landingPage.OldUpdatedBy]
-		if !ok {
-			updatedBy = adminID
-		}
-		landingPage.UpdatedBy = updatedBy
 		if photo, ok := landingPage.CustomAttributes["photo"]; ok {
 			sb.Reset()
 			_, _ = fmt.Fprintf(&sb, "%s/landing-page-imgs/%s/%s", os.Getenv("PHOTO_DIRECTORY"), landingPage.OldName, photo)
@@ -1276,9 +1128,9 @@ func main() {
 			RecordStatusActive,
 			landingPage.Name,
 			landingPage.CustomAttributes,
-			landingPage.CreatedBy,
+			sellerID,
 			landingPage.CreatedAt,
-			landingPage.UpdatedBy,
+			sellerID,
 			landingPage.UpdatedAt,
 		).Scan(&landingPage.ID); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -1336,9 +1188,9 @@ func main() {
 				landingPageItem.LinkText,
 				landingPageItem.LinkURL,
 				landingPageItem.Photo,
-				landingPage.CreatedBy,
+				sellerID,
 				landingPage.CreatedAt,
-				landingPage.UpdatedBy,
+				sellerID,
 				landingPage.UpdatedAt,
 			); err != nil {
 				Log(slog.LevelError, err.Error())
@@ -1356,9 +1208,7 @@ func main() {
 			, nama
 			, keterangan
 			, gambar
-			, createdBy
 			, createdAt
-			, updatedBy
 			, updatedAt
 		FROM kategori_produk
 		ORDER BY id`,
@@ -1381,24 +1231,12 @@ func main() {
 			&productCategory.Name,
 			&productCategory.Description,
 			&productCategory.Photo,
-			&productCategory.OldCreatedBy,
 			&productCategory.CreatedAt,
-			&productCategory.OldUpdatedBy,
 			&productCategory.UpdatedAt,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
 			return
 		}
-		createdBy, ok := mapAdminIDs[productCategory.OldCreatedBy]
-		if !ok {
-			createdBy = adminID
-		}
-		productCategory.CreatedBy = createdBy
-		updatedBy, ok := mapAdminIDs[productCategory.OldUpdatedBy]
-		if !ok {
-			updatedBy = adminID
-		}
-		productCategory.UpdatedBy = updatedBy
 		if productCategory.Photo == "kategori-produk-default.png" {
 			productCategory.Photo = "product-category-default.png"
 		} else {
@@ -1413,9 +1251,7 @@ func main() {
 	productCategories = append(productCategories, ProductCategory{
 		Name:      "Lain-Lain",
 		Photo:     "product-category-default.png",
-		CreatedBy: adminID,
 		CreatedAt: now,
-		UpdatedBy: adminID,
 		UpdatedAt: now,
 	})
 	sb.Reset()
@@ -1481,9 +1317,9 @@ func main() {
 			productCategory.Name,
 			productCategory.Description,
 			productCategory.Photo,
-			productCategory.CreatedBy,
+			sellerID,
 			productCategory.CreatedAt,
-			productCategory.UpdatedBy,
+			sellerID,
 			productCategory.UpdatedAt,
 		).Scan(&productCategory.ID); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -1506,9 +1342,7 @@ func main() {
 			, a.idKategoriProduk
 			, a.stokAvailable = 1
 			, a.superior = 1
-			, a.createdBy
 			, a.createdAt
-			, a.updatedBy
 			, a.updatedAt
 		FROM produk a
 		WHERE EXISTS(
@@ -1540,9 +1374,7 @@ func main() {
 			&product.OldProductCategoryID,
 			&product.ReadyStock,
 			&product.Pinned,
-			&product.OldCreatedBy,
 			&product.CreatedAt,
-			&product.OldUpdatedBy,
 			&product.UpdatedAt,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -1559,16 +1391,6 @@ func main() {
 		}
 		product.ProductCategoryID = productCategory.ID
 		product.ProductCategoryName = productCategory.Name
-		createdBy, ok := mapAdminIDs[product.OldCreatedBy]
-		if !ok {
-			createdBy = adminID
-		}
-		product.CreatedBy = createdBy
-		updatedBy, ok := mapAdminIDs[product.OldUpdatedBy]
-		if !ok {
-			updatedBy = adminID
-		}
-		product.UpdatedBy = updatedBy
 		if product.Photo == "produk-default.png" {
 			product.Photo = "product-default.png"
 		} else {
@@ -1653,9 +1475,9 @@ func main() {
 			product.ReadyStock,
 			product.Pinned,
 			product.Hits,
-			product.CreatedBy,
+			sellerID,
 			product.CreatedAt,
-			product.UpdatedBy,
+			sellerID,
 			product.UpdatedAt,
 		).Scan(&product.ID); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -1673,9 +1495,7 @@ func main() {
 			, a.harga
 			, a.diskon
 			, a.keterangan
-			, b.createdBy
 			, b.createdAt
-			, b.updatedBy
 			, b.updatedAt
 		FROM produk_harga a
 		JOIN produk b ON a.idProduk = b.id
@@ -1715,9 +1535,7 @@ func main() {
 			&productVariant.BasePrice,
 			&productVariant.DiscountRate,
 			&productVariant.Description,
-			&productVariant.OldCreatedBy,
 			&productVariant.CreatedAt,
-			&productVariant.OldUpdatedBy,
 			&productVariant.UpdatedAt,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -1735,16 +1553,6 @@ func main() {
 		productVariant.ProductID = product.ID
 		productVariant.ProductName = product.Name
 		productVariant.ProductReadyStock = product.ReadyStock
-		createdBy, ok := mapAdminIDs[productVariant.OldCreatedBy]
-		if !ok {
-			createdBy = adminID
-		}
-		productVariant.CreatedBy = createdBy
-		updatedBy, ok := mapAdminIDs[productVariant.OldUpdatedBy]
-		if !ok {
-			updatedBy = adminID
-		}
-		productVariant.UpdatedBy = updatedBy
 		productVariants = append(productVariants, productVariant)
 		if _, ok := mapProductVariantStockUnits[product.ID]; !ok {
 			mapProductVariantStockUnits[product.ID] = map[string]struct{}{}
@@ -1796,9 +1604,9 @@ func main() {
 			productVariant.DiscountAmount,
 			productVariant.SalePrice,
 			productVariant.Description,
-			productVariant.CreatedBy,
+			sellerID,
 			productVariant.CreatedAt,
-			productVariant.UpdatedBy,
+			sellerID,
 			productVariant.UpdatedAt,
 		).Scan(&productVariant.ID); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -1829,9 +1637,7 @@ func main() {
 			, stockAvailable = 1
 			, superior = 1
 			, keterangan
-			, createdBy
 			, createdAt
-			, updatedBy
 			, updatedAt
 		FROM produk_paket
 		ORDER BY id`,
@@ -1858,9 +1664,7 @@ func main() {
 			&product.ReadyStock,
 			&product.Pinned,
 			&product.Description,
-			&product.OldCreatedBy,
 			&product.CreatedAt,
-			&product.OldUpdatedBy,
 			&product.UpdatedAt,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -1873,16 +1677,6 @@ func main() {
 		}
 		product.ProductCategoryID = bundledProductCategory.ID
 		product.ProductCategoryName = bundledProductCategory.Name
-		createdBy, ok := mapAdminIDs[product.OldCreatedBy]
-		if !ok {
-			createdBy = adminID
-		}
-		product.CreatedBy = createdBy
-		updatedBy, ok := mapAdminIDs[product.OldUpdatedBy]
-		if !ok {
-			updatedBy = adminID
-		}
-		product.UpdatedBy = updatedBy
 		if product.Photo == "paket-default.png" {
 			product.Photo = "bundle-default.png"
 		} else {
@@ -1967,9 +1761,9 @@ func main() {
 			product.Pinned,
 			product.Hits,
 			product.BasePrice,
-			product.CreatedBy,
+			sellerID,
 			product.CreatedAt,
-			product.UpdatedBy,
+			sellerID,
 			product.UpdatedAt,
 		).Scan(&product.ID); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -2013,9 +1807,9 @@ func main() {
 			product.Discount,
 			product.BasePrice-product.Discount,
 			"",
-			product.CreatedBy,
+			sellerID,
 			product.CreatedAt,
-			product.UpdatedBy,
+			sellerID,
 			product.UpdatedAt,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -2032,9 +1826,7 @@ func main() {
 			, keterangan
 			, gambar
 			, shown = 1
-			, createdBy
 			, createdAt
-			, updatedBy
 			, updatedAt
 		FROM banner
 		ORDER BY id`,
@@ -2058,9 +1850,7 @@ func main() {
 			&banner.Description,
 			&banner.Photo,
 			&banner.Visible,
-			&banner.OldCreatedBy,
 			&banner.CreatedAt,
-			&banner.OldUpdatedBy,
 			&banner.UpdatedAt,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -2069,16 +1859,6 @@ func main() {
 		banners = append(banners, banner)
 	}
 	for i, banner := range banners {
-		createdBy, ok := mapAdminIDs[banner.OldCreatedBy]
-		if !ok {
-			createdBy = adminID
-		}
-		banner.CreatedBy = createdBy
-		updatedBy, ok := mapAdminIDs[banner.OldUpdatedBy]
-		if !ok {
-			updatedBy = adminID
-		}
-		banner.UpdatedBy = updatedBy
 		sb.Reset()
 		_, _ = fmt.Fprintf(&sb, "%s/banner/%s", os.Getenv("PHOTO_DIRECTORY"), banner.Photo)
 		src = sb.String()
@@ -2125,9 +1905,9 @@ func main() {
 			banner.Description,
 			banner.Photo,
 			banner.Visible,
-			banner.CreatedBy,
+			sellerID,
 			banner.CreatedAt,
-			banner.UpdatedBy,
+			sellerID,
 			banner.UpdatedAt,
 		).Scan(&banner.ID); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -2156,9 +1936,7 @@ func main() {
 			, keterangan
 			, igLink
 			, fbLink
-			, createdBy
 			, createdAt
-			, updatedBy
 			, updatedAt
 		FROM resep
 		ORDER BY id`,
@@ -2184,9 +1962,7 @@ func main() {
 			&recipe.Description,
 			&recipe.InstagramLink,
 			&recipe.FacebookLink,
-			&recipe.OldCreatedBy,
 			&recipe.CreatedAt,
-			&recipe.OldUpdatedBy,
 			&recipe.UpdatedAt,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -2262,16 +2038,6 @@ func main() {
 		}
 	}
 	for i, recipe := range recipes {
-		createdBy, ok := mapAdminIDs[recipe.OldCreatedBy]
-		if !ok {
-			createdBy = adminID
-		}
-		recipe.CreatedBy = createdBy
-		updatedBy, ok := mapAdminIDs[recipe.OldUpdatedBy]
-		if !ok {
-			updatedBy = adminID
-		}
-		recipe.UpdatedBy = updatedBy
 		sb.Reset()
 		_, _ = fmt.Fprintf(&sb, "%s/resep/%s", os.Getenv("PHOTO_DIRECTORY"), recipe.Photo)
 		src = sb.String()
@@ -2320,9 +2086,9 @@ func main() {
 			recipe.Description,
 			recipe.InstagramLink,
 			recipe.FacebookLink,
-			recipe.CreatedBy,
+			sellerID,
 			recipe.CreatedAt,
-			recipe.UpdatedBy,
+			sellerID,
 			recipe.UpdatedAt,
 		).Scan(&recipe.ID); err != nil {
 			Log(slog.LevelError, err.Error())
@@ -2343,9 +2109,9 @@ func main() {
 				RecordStatusActive,
 				recipe.ID,
 				recipeGuide.Instruction,
-				recipe.CreatedBy,
+				sellerID,
 				recipe.CreatedAt,
-				recipe.UpdatedBy,
+				sellerID,
 				recipe.UpdatedAt,
 			); err != nil {
 				Log(slog.LevelError, err.Error())
@@ -2381,9 +2147,9 @@ func main() {
 				product.ReadyStock,
 				recipeItem.Dose,
 				recipeItem.Note,
-				recipe.CreatedBy,
+				sellerID,
 				recipe.CreatedAt,
-				recipe.UpdatedBy,
+				sellerID,
 				recipe.UpdatedAt,
 			); err != nil {
 				Log(slog.LevelError, err.Error())
