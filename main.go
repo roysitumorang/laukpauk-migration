@@ -480,7 +480,12 @@ func main() {
 	var sellerID, companyID uuid.UUID
 	if err = tx.QueryRow(
 		ctx,
-		`SELECT id, company_id FROM sellers`,
+		`SELECT
+			id
+			, company_id
+		FROM sellers
+		WHERE id != $1`,
+		uuid.Nil(),
 	).Scan(&sellerID, &companyID); err != nil {
 		Log(slog.LevelError, err.Error())
 		return
