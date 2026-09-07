@@ -1458,7 +1458,8 @@ func main() {
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO products (
-				record_status
+				company_id
+				, record_status
 				, product_category_id
 				, product_category_name
 				, product_type
@@ -1472,8 +1473,9 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 			RETURNING id`,
+			companyID,
 			RecordStatusActive,
 			product.ProductCategoryID,
 			product.ProductCategoryName,
@@ -1577,7 +1579,8 @@ func main() {
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO product_variants (
-				record_status
+				company_id
+				, record_status
 				, product_category_id
 				, product_category_name
 				, product_id
@@ -1596,8 +1599,9 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 			RETURNING id`,
+			companyID,
 			RecordStatusActive,
 			productVariant.ProductCategoryID,
 			productVariant.ProductCategoryName,
@@ -1742,7 +1746,8 @@ func main() {
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO products (
-				record_status
+				company_id
+				, record_status
 				, product_category_id
 				, product_category_name
 				, product_type
@@ -1757,8 +1762,9 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 			RETURNING id`,
+			companyID,
 			RecordStatusActive,
 			product.ProductCategoryID,
 			product.ProductCategoryName,
@@ -1781,7 +1787,8 @@ func main() {
 		if _, err = tx.Exec(
 			ctx,
 			`INSERT INTO product_variants (
-				record_status
+				company_id
+				, record_status
 				, product_category_id
 				, product_category_name
 				, product_id
@@ -1800,7 +1807,8 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+			companyID,
 			RecordStatusActive,
 			product.ProductCategoryID,
 			product.ProductCategoryName,
@@ -2077,7 +2085,8 @@ func main() {
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO recipes (
-				record_status
+				company_id
+				, record_status
 				, name
 				, photo
 				, description
@@ -2087,8 +2096,9 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			RETURNING id`,
+			companyID,
 			RecordStatusActive,
 			recipe.Name,
 			recipe.Photo,
@@ -2107,14 +2117,16 @@ func main() {
 			if _, err = tx.Exec(
 				ctx,
 				`INSERT INTO recipe_guides (
-					record_status
+					company_id
+					, record_status
 					, recipe_id
 					, instruction
 					, created_by
 					, created_at
 					, updated_by
 					, updated_at
-				) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+				companyID,
 				RecordStatusActive,
 				recipe.ID,
 				recipeGuide.Instruction,
@@ -2135,7 +2147,8 @@ func main() {
 			if _, err = tx.Exec(
 				ctx,
 				`INSERT INTO recipe_items (
-					record_status
+					company_id
+					, record_status
 					, recipe_id
 					, product_id
 					, product_name
@@ -2147,7 +2160,8 @@ func main() {
 					, created_at
 					, updated_by
 					, updated_at
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+				companyID,
 				RecordStatusActive,
 				recipe.ID,
 				product.ID,
