@@ -74,7 +74,7 @@ type (
 		Name,
 		Address,
 		Username string
-		MobilePhone      *string
+		MobilePhone      string
 		OldReferrerID    *int64
 		ReferrerID       *uuid.UUID
 		VerificationCode *string
@@ -528,6 +528,8 @@ func main() {
 		FROM user
 		WHERE nama NOT LIKE '%laukpauk%'
 			AND nama NOT LIKE '%toko%'
+			AND nomorHP != ''
+		GROUP BY nomorHP
 		ORDER BY id`,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -588,25 +590,21 @@ func main() {
 			_, _ = sb.WriteString(RandomNumber(2))
 			buyer.Username = sb.String()
 		}
-		if buyer.MobilePhone != nil && *buyer.MobilePhone != "" {
-			mobilePhone, err := phonenumbers.Parse(*buyer.MobilePhone, "ID")
-			if err != nil {
-				Log(slog.LevelError, err.Error(), "mobile_phone", buyer.MobilePhone)
-				return
+		mobilePhone, err := phonenumbers.Parse(buyer.MobilePhone, "ID")
+		if err != nil {
+			Log(slog.LevelError, err.Error(), "mobile_phone", buyer.MobilePhone)
+			return
+		}
+		buyer.MobilePhone = phonenumbers.Format(mobilePhone, phonenumbers.E164)
+		for {
+			if _, ok := mapMobilePhones[buyer.MobilePhone]; !ok {
+				mapMobilePhones[buyer.MobilePhone] = struct{}{}
+				break
 			}
-			buyer.MobilePhone = new(phonenumbers.Format(mobilePhone, phonenumbers.E164))
-			for {
-				if _, ok := mapMobilePhones[*buyer.MobilePhone]; !ok {
-					mapMobilePhones[*buyer.MobilePhone] = struct{}{}
-					break
-				}
-				sb.Reset()
-				_, _ = sb.WriteString(*buyer.MobilePhone)
-				_, _ = sb.WriteString(RandomNumber(1))
-				buyer.MobilePhone = new(sb.String())
-			}
-		} else {
-			buyer.MobilePhone = nil
+			sb.Reset()
+			_, _ = sb.WriteString(buyer.MobilePhone)
+			_, _ = sb.WriteString(RandomNumber(1))
+			buyer.MobilePhone = sb.String()
 		}
 		if buyer.OldReferrerID != nil && *buyer.OldReferrerID == 0 {
 			buyer.OldReferrerID = nil
