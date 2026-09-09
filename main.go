@@ -672,16 +672,13 @@ func main() {
 				, mobile_phone_confirmation_sent_at
 				, mobile_phone_confirmed_at
 				, mobile_phone
-				, otp_hash
-				, otp_expired_at
-				, otp_text_message_id
 				, username
 				, photo
 				, referral_code
 				, address
 				, created_at
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 			RETURNING id`,
 			companyID,
 			0,
@@ -690,9 +687,6 @@ func main() {
 			buyer.CreatedAt,
 			confirmedAt,
 			buyer.MobilePhone,
-			"",
-			time.Unix(0, 0),
-			uuid.Nil(),
 			buyer.Username,
 			buyer.Photo,
 			buyer.ReferralCode,
