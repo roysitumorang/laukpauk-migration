@@ -808,7 +808,8 @@ func main() {
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO articles (
-				record_status
+				company_id
+				, record_status
 				, subject
 				, body
 				, photo
@@ -817,8 +818,9 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			RETURNING id`,
+			companyID,
 			RecordStatusActive,
 			article.Subject,
 			article.Body,
