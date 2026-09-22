@@ -160,13 +160,14 @@ type (
 		UpdatedAt time.Time
 	}
 	ProductVariant struct {
-		ID                      uuid.UUID
-		OldID                   int64
-		ProductCategoryID       uuid.UUID
-		ProductCategoryName     string
-		ProductID               uuid.UUID
-		OldProductID            int64
-		ProductName             string
+		ID                  uuid.UUID
+		OldID               int64
+		ProductCategoryID   uuid.UUID
+		ProductCategoryName string
+		ProductID           uuid.UUID
+		OldProductID        int64
+		ProductName,
+		ProductPhoto string
 		ProductReadyStock       bool
 		StockUnit               string
 		BasePrice               int64
@@ -1561,6 +1562,7 @@ func main() {
 		productVariant.ProductCategoryName = product.ProductCategoryName
 		productVariant.ProductID = product.ID
 		productVariant.ProductName = product.Name
+		productVariant.ProductPhoto = product.Photo
 		productVariant.ProductReadyStock = product.ReadyStock
 		productVariants = append(productVariants, productVariant)
 		if _, ok := mapProductVariantStockUnits[product.ID]; !ok {
@@ -1583,6 +1585,7 @@ func main() {
 				, product_category_name
 				, product_id
 				, product_name
+				, product_photo
 				, product_ready_stock
 				, stock_unit
 				, base_price
@@ -1597,7 +1600,7 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
 			RETURNING id`,
 			companyID,
 			RecordStatusActive,
@@ -1605,6 +1608,7 @@ func main() {
 			productVariant.ProductCategoryName,
 			productVariant.ProductID,
 			productVariant.ProductName,
+			productVariant.ProductPhoto,
 			productVariant.ProductReadyStock,
 			productVariant.StockUnit,
 			productVariant.BasePrice,
@@ -1791,6 +1795,7 @@ func main() {
 				, product_category_name
 				, product_id
 				, product_name
+				, product_photo
 				, product_ready_stock
 				, stock_unit
 				, base_price
@@ -1805,13 +1810,14 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
 			companyID,
 			RecordStatusActive,
 			product.ProductCategoryID,
 			product.ProductCategoryName,
 			product.ID,
 			product.Name,
+			product.Photo,
 			product.ReadyStock,
 			"paket",
 			product.BasePrice,
