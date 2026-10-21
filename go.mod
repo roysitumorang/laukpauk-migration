@@ -1,6 +1,6 @@
 module github.com/roysitumorang/laukpauk-migration
 
-go 1.27
+go 1.27.3
 
 require (
 	github.com/go-sql-driver/mysql v1.10.1
