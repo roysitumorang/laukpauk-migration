@@ -21,7 +21,7 @@ import (
 	"uuid"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/goccy/go-json"
+	"github.com/goccy/go-json/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
