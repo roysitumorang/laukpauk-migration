@@ -82,55 +82,6 @@ type (
 		CreatedAt,
 		UpdatedAt time.Time
 	}
-	Article struct {
-		ID    uuid.UUID
-		OldID int64
-		Subject,
-		Body,
-		Photo,
-		Link string
-		CreatedAt,
-		UpdatedAt time.Time
-	}
-	Blog struct {
-		ID    uuid.UUID
-		OldID int64
-		Subject,
-		Body,
-		Slug,
-		Photo string
-		CreatedAt,
-		UpdatedAt time.Time
-	}
-	LandingPage struct {
-		ID uuid.UUID
-		OldName,
-		Name string
-		CustomAttributes map[string]string
-		CreatedAt,
-		UpdatedAt *time.Time
-		Items []*LandingPageItem
-	}
-	LandingPageItem struct {
-		OldLandingPageName,
-		Subject,
-		Body string
-		Photo,
-		LinkText,
-		LinkURL *string
-	}
-	LandingPageItemData struct {
-		Subject string  `json:"title"`
-		Body    string  `json:"content"`
-		Photo   *string `json:"img"`
-	}
-	LandingPageItemHero struct {
-		Subject  string  `json:"heading"`
-		Body     string  `json:"content"`
-		LinkURL  *string `json:"buttonLink"`
-		LinkText *string `json:"buttonText"`
-		Photo    *string `json:"img"`
-	}
 	ProductCategory struct {
 		ID    uuid.UUID
 		OldID int64
