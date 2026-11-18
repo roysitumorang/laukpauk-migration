@@ -21,7 +21,6 @@ import (
 	"uuid"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/goccy/go-json/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -49,7 +48,7 @@ const (
 )
 
 type (
-	Admin struct {
+	User struct {
 		ID    uuid.UUID
 		OldID int64
 		Role,
@@ -320,55 +319,55 @@ func main() {
 	defer func() {
 		_ = rows.Close()
 	}()
-	var admins []Admin
+	var sellers []User
 	mapUsernames := map[string]struct{}{}
 	mapConfirmationTokens := map[string]struct{}{}
 	mapMobilePhones := map[string]struct{}{}
 	for rows.Next() {
-		var admin Admin
+		var seller User
 		if err = rows.Scan(
-			&admin.OldID,
-			&admin.Role,
-			&admin.Photo,
-			&admin.Name,
-			&admin.Email,
-			&admin.MobilePhone,
-			&admin.Username,
-			&admin.OldCreatedBy,
-			&admin.CreatedAt,
-			&admin.OldUpdatedBy,
-			&admin.UpdatedAt,
+			&seller.OldID,
+			&seller.Role,
+			&seller.Photo,
+			&seller.Name,
+			&seller.Email,
+			&seller.MobilePhone,
+			&seller.Username,
+			&seller.OldCreatedBy,
+			&seller.CreatedAt,
+			&seller.OldUpdatedBy,
+			&seller.UpdatedAt,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
 			return
 		}
-		if admin.Username == "" {
-			admin.Username = RandomString(6)
+		if seller.Username == "" {
+			seller.Username = RandomString(6)
 		} else {
-			admin.Username = strings.ToLower(regex.ReplaceAllString(admin.Username, ""))
+			seller.Username = strings.ToLower(regex.ReplaceAllString(seller.Username, ""))
 		}
 		for {
-			if _, ok := mapUsernames[admin.Username]; !ok {
-				mapUsernames[admin.Username] = struct{}{}
+			if _, ok := mapUsernames[seller.Username]; !ok {
+				mapUsernames[seller.Username] = struct{}{}
 				break
 			}
-			admin.Username = RandomString(6)
+			seller.Username = RandomString(6)
 		}
-		mobilePhone, err := phonenumbers.Parse(admin.MobilePhone, "ID")
+		mobilePhone, err := phonenumbers.Parse(seller.MobilePhone, "ID")
 		if err != nil {
 			Log(slog.LevelError, err.Error())
 			return
 		}
-		admin.MobilePhone = phonenumbers.Format(mobilePhone, phonenumbers.E164)
+		seller.MobilePhone = phonenumbers.Format(mobilePhone, phonenumbers.E164)
 		for {
-			if _, ok := mapMobilePhones[admin.MobilePhone]; !ok {
-				mapMobilePhones[admin.MobilePhone] = struct{}{}
+			if _, ok := mapMobilePhones[seller.MobilePhone]; !ok {
+				mapMobilePhones[seller.MobilePhone] = struct{}{}
 				break
 			}
 			sb.Reset()
-			_, _ = sb.WriteString(admin.MobilePhone)
+			_, _ = sb.WriteString(seller.MobilePhone)
 			_, _ = sb.WriteString(RandomNumber(1))
-			admin.MobilePhone = sb.String()
+			seller.MobilePhone = sb.String()
 		}
 		encryptedPassword, err := hashPassword(&sb, temporaryPassword)
 		if err != nil {
@@ -376,120 +375,99 @@ func main() {
 			return
 		}
 		if encryptedPassword != nil {
-			admin.Password = *encryptedPassword
+			seller.Password = *encryptedPassword
 		}
-		if admin.OldCreatedBy != nil && *admin.OldCreatedBy == 0 {
-			admin.OldCreatedBy = nil
+		if seller.OldCreatedBy != nil && *seller.OldCreatedBy == 0 {
+			seller.OldCreatedBy = nil
 		}
-		if admin.OldUpdatedBy != nil && *admin.OldUpdatedBy == 0 {
-			admin.OldUpdatedBy = nil
+		if seller.OldUpdatedBy != nil && *seller.OldUpdatedBy == 0 {
+			seller.OldUpdatedBy = nil
 		}
-		admins = append(admins, admin)
+		sellers = append(sellers, seller)
 	}
-	var adminID uuid.UUID
-	mapAdminIDs := map[int64]uuid.UUID{}
-	for i, admin := range admins {
-		if admin.Email == "benni.surbakti@gmail.com" {
+	var userID, sellerID uuid.UUID
+	mapUserIDs := map[int64]uuid.UUID{}
+	for i, seller := range sellers {
+		if seller.Email == "benni.surbakti@gmail.com" {
 			if err = tx.QueryRow(
 				ctx,
 				`SELECT id
-				FROM admins
+				FROM users
 				WHERE email = $1`,
-				admin.Email,
-			).Scan(&admin.ID); err != nil {
+				seller.Email,
+			).Scan(&seller.ID); err != nil {
 				Log(slog.LevelError, err.Error())
 				return
 			}
-			adminID = admin.ID
-		} else {
-			var adminLevel int
-			switch admin.Role {
-			case "superadmin":
-				adminLevel = 0
-			case "admin":
-				fallthrough
-			default:
-				adminLevel = 1
-			}
-			if err = tx.QueryRow(
-				ctx,
-				`INSERT INTO admins (
-					status
-					, admin_level
-					, name
-					, mobile_phone_confirmed_at
-					, mobile_phone
-					, username
-					, email_confirmed_at
-					, email
-					, encrypted_password
-					, photo
-					, created_at
-					, updated_at
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-				RETURNING id`,
-				0,
-				adminLevel,
-				admin.Name,
-				admin.UpdatedAt,
-				admin.MobilePhone,
-				admin.Username,
-				admin.UpdatedAt,
-				admin.Email,
-				admin.Password,
-				admin.Photo,
-				admin.CreatedAt,
-				admin.UpdatedAt,
-			).Scan(&admin.ID); err != nil {
-				Log(slog.LevelError, err.Error())
-				return
-			}
+			userID = seller.ID
+			sellerID = seller.ID
+		} else if err = tx.QueryRow(
+			ctx,
+			`INSERT INTO users (
+				role
+				, status
+				, name
+				, mobile_phone_confirmed_at
+				, mobile_phone
+				, username
+				, email_confirmed_at
+				, email
+				, encrypted_password
+				, photo
+				, user_level
+				, created_at
+				, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			RETURNING id`,
+			"seller",
+			"active",
+			seller.Name,
+			seller.UpdatedAt,
+			seller.MobilePhone,
+			seller.Username,
+			seller.UpdatedAt,
+			seller.Email,
+			seller.Password,
+			"seller-default.png",
+			"staff",
+			seller.CreatedAt,
+			seller.UpdatedAt,
+		).Scan(&seller.ID); err != nil {
+			Log(slog.LevelError, err.Error())
+			return
 		}
-		mapAdminIDs[admin.OldID] = admin.ID
-		admins[i] = admin
+		mapUserIDs[seller.OldID] = seller.ID
+		sellers[i] = seller
 	}
-	for i, admin := range admins {
-		if admin.OldCreatedBy != nil {
-			createdBy, ok := mapAdminIDs[*admin.OldCreatedBy]
+	for i, seller := range sellers {
+		if seller.OldCreatedBy != nil {
+			createdBy, ok := mapUserIDs[*seller.OldCreatedBy]
 			if !ok {
-				createdBy = adminID
+				createdBy = userID
 			}
-			admin.CreatedBy = &createdBy
+			seller.CreatedBy = &createdBy
 		}
-		if admin.OldUpdatedBy != nil {
-			updatedBy, ok := mapAdminIDs[*admin.OldUpdatedBy]
+		if seller.OldUpdatedBy != nil {
+			updatedBy, ok := mapUserIDs[*seller.OldUpdatedBy]
 			if !ok {
-				updatedBy = adminID
+				updatedBy = userID
 			}
-			admin.UpdatedBy = &updatedBy
+			seller.UpdatedBy = &updatedBy
 		}
 		if _, err = tx.Exec(
 			ctx,
-			`UPDATE admins SET
+			`UPDATE users SET
 				created_by = $1
 				, updated_by = $2
 			WHERE id = $3`,
-			admin.CreatedBy,
-			admin.UpdatedBy,
-			admin.ID,
+			seller.CreatedBy,
+			seller.UpdatedBy,
+			seller.ID,
 		); err != nil {
 			Log(slog.LevelError, err.Error())
 			return
 		}
-		admins[i] = admin
-	}
-	var sellerID, companyID uuid.UUID
-	if err = tx.QueryRow(
-		ctx,
-		`SELECT
-			id
-			, company_id
-		FROM sellers
-		WHERE id != $1`,
-		uuid.Nil(),
-	).Scan(&sellerID, &companyID); err != nil {
-		Log(slog.LevelError, err.Error())
-		return
+		sellers[i] = seller
 	}
 	// buyers
 	sb.Reset()
@@ -665,8 +643,8 @@ func main() {
 		}
 		if err = tx.QueryRow(
 			ctx,
-			`INSERT INTO buyers (
-				company_id
+			`INSERT INTO users (
+				role
 				, status
 				, name
 				, mobile_phone_confirmation_token
@@ -675,14 +653,15 @@ func main() {
 				, mobile_phone
 				, username
 				, photo
+				, user_level
 				, referral_code
 				, address
 				, created_at
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 			RETURNING id`,
-			companyID,
-			0,
+			"buyer",
+			"active",
 			buyer.Name,
 			buyer.VerificationCode,
 			buyer.CreatedAt,
@@ -690,6 +669,7 @@ func main() {
 			buyer.MobilePhone,
 			buyer.Username,
 			buyer.Photo,
+			"buyer",
 			buyer.ReferralCode,
 			buyer.Address,
 			buyer.CreatedAt,
@@ -710,7 +690,7 @@ func main() {
 		if buyer.ReferrerID != nil {
 			if _, err = tx.Exec(
 				ctx,
-				`UPDATE buyers SET
+				`UPDATE users SET
 					referrer_id = $1
 				WHERE id = $2`,
 				buyer.ReferrerID,
@@ -721,492 +701,6 @@ func main() {
 			}
 		}
 		buyers[i] = buyer
-	}
-	// articles
-	sb.Reset()
-	_, _ = fmt.Fprintf(&sb, "%s/artikel/artikel-default.png", os.Getenv("PHOTO_DIRECTORY"))
-	src = sb.String()
-	sb.Reset()
-	_, _ = fmt.Fprintf(&sb, "%s/article-default.png", os.Getenv("PHOTO_DIRECTORY"))
-	dst = sb.String()
-	photos = append(photos, dst)
-	if err = copyFile(src, dst); err != nil {
-		Log(slog.LevelError, err.Error())
-		return
-	}
-	rows, err = mysql.QueryContext(
-		ctx,
-		`SELECT
-			id
-			, judul
-			, isi
-			, foto
-			, link
-			, createdAt
-			, updatedAt
-		FROM artikel
-		ORDER BY id`,
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		Log(slog.LevelError, err.Error())
-		return
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-	var articles []Article
-	for rows.Next() {
-		var article Article
-		if err = rows.Scan(
-			&article.OldID,
-			&article.Subject,
-			&article.Body,
-			&article.Photo,
-			&article.Link,
-			&article.CreatedAt,
-			&article.UpdatedAt,
-		); err != nil {
-			Log(slog.LevelError, err.Error())
-			return
-		}
-		articles = append(articles, article)
-	}
-	for i, article := range articles {
-		if article.Photo == "artikel-default.png" {
-			article.Photo = "article-default.png"
-		} else {
-			sb.Reset()
-			_, _ = fmt.Fprintf(&sb, "%s/artikel/%s", os.Getenv("PHOTO_DIRECTORY"), article.Photo)
-			src = sb.String()
-			sb.Reset()
-			_, _ = fmt.Fprintf(&sb, "%s.webp", uuid.NewV7().String())
-			article.Photo = sb.String()
-			sb.Reset()
-			_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), article.Photo)
-			dst = sb.String()
-			photos = append(photos, dst)
-			switch filepath.Ext(src) {
-			case ".jpg", ".jpeg":
-				if err = jpeg2webp(src, dst); err != nil {
-					Log(slog.LevelError, err.Error())
-					return
-				}
-			case ".png":
-				if err = png2webp(src, dst); err != nil {
-					Log(slog.LevelError, err.Error())
-					return
-				}
-			case ".webp":
-				if err = copyFile(src, dst); err != nil {
-					Log(slog.LevelError, err.Error())
-					return
-				}
-			}
-		}
-		if err = tx.QueryRow(
-			ctx,
-			`INSERT INTO articles (
-				company_id
-				, record_status
-				, subject
-				, body
-				, photo
-				, link
-				, created_by
-				, created_at
-				, updated_by
-				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-			RETURNING id`,
-			companyID,
-			RecordStatusActive,
-			article.Subject,
-			article.Body,
-			article.Photo,
-			article.Link,
-			sellerID,
-			article.CreatedAt,
-			sellerID,
-			article.UpdatedAt,
-		).Scan(&article.ID); err != nil {
-			Log(slog.LevelError, err.Error())
-			return
-		}
-		articles[i] = article
-	}
-	// blogs
-	rows, err = mysql.QueryContext(
-		ctx,
-		`SELECT
-			id
-			, foto
-			, title
-			, content
-			, permalink
-			, createdAt
-			, COALESCE(updatedAt, createdAt)
-		FROM blog
-		ORDER BY id`,
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		Log(slog.LevelError, err.Error())
-		return
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-	var blogs []Blog
-	for rows.Next() {
-		var blog Blog
-		if err = rows.Scan(
-			&blog.OldID,
-			&blog.Photo,
-			&blog.Subject,
-			&blog.Body,
-			&blog.Slug,
-			&blog.CreatedAt,
-			&blog.UpdatedAt,
-		); err != nil {
-			Log(slog.LevelError, err.Error())
-			return
-		}
-		blogs = append(blogs, blog)
-	}
-	for i, blog := range blogs {
-		sb.Reset()
-		_, _ = fmt.Fprintf(&sb, "%s/blog/%s", os.Getenv("PHOTO_DIRECTORY"), blog.Photo)
-		src = sb.String()
-		sb.Reset()
-		_, _ = fmt.Fprintf(&sb, "%s.webp", uuid.NewV7().String())
-		blog.Photo = sb.String()
-		sb.Reset()
-		_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), blog.Photo)
-		dst = sb.String()
-		photos = append(photos, dst)
-		switch filepath.Ext(src) {
-		case ".jpg", ".jpeg":
-			if err = jpeg2webp(src, dst); err != nil {
-				Log(slog.LevelError, err.Error())
-				return
-			}
-		case ".png":
-			if err = png2webp(src, dst); err != nil {
-				Log(slog.LevelError, err.Error())
-				return
-			}
-		case ".webp":
-			if err = copyFile(src, dst); err != nil {
-				Log(slog.LevelError, err.Error())
-				return
-			}
-		}
-		if err = tx.QueryRow(
-			ctx,
-			`INSERT INTO blogs (
-				company_id
-				, record_status
-				, subject
-				, body
-				, slug
-				, photo
-				, created_by
-				, created_at
-				, updated_by
-				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-			RETURNING id`,
-			companyID,
-			RecordStatusActive,
-			blog.Subject,
-			blog.Body,
-			blog.Slug,
-			blog.Photo,
-			sellerID,
-			blog.CreatedAt,
-			sellerID,
-			blog.UpdatedAt,
-		).Scan(&blog.ID); err != nil {
-			Log(slog.LevelError, err.Error())
-			return
-		}
-		blogs[i] = blog
-	}
-	// landing_pages
-	sb.Reset()
-	_, _ = fmt.Fprintf(&sb, "%s/landing-page-imgs/pahlawanDapur", os.Getenv("PHOTO_DIRECTORY"))
-	src = sb.String()
-	sb.Reset()
-	_, _ = fmt.Fprintf(&sb, "%s/landing-page-imgs/pahlawan-dapur", os.Getenv("PHOTO_DIRECTORY"))
-	dst = sb.String()
-	if _, err = os.Stat(src); err == nil {
-		if err = os.Rename(src, dst); err != nil {
-			Log(slog.LevelError, err.Error())
-			return
-		}
-	}
-	sb.Reset()
-	_, _ = fmt.Fprintf(&sb, "%s/landing-page-imgs/uangBelanjaGratis", os.Getenv("PHOTO_DIRECTORY"))
-	src = sb.String()
-	sb.Reset()
-	_, _ = fmt.Fprintf(&sb, "%s/landing-page-imgs/uang-belanja-gratis", os.Getenv("PHOTO_DIRECTORY"))
-	dst = sb.String()
-	if _, err = os.Stat(src); err == nil {
-		if err = os.Rename(src, dst); err != nil {
-			Log(slog.LevelError, err.Error())
-			return
-		}
-	}
-	rows, err = mysql.QueryContext(
-		ctx,
-		`SELECT
-			COALESCE(p.name, CASE WHEN c.parent = '_halamanBantuan' THEN c.parent END)
-			, c.elementKey
-			, c.elementValue
-			, p.createdAt
-			, COALESCE(p.updatedAt, p.createdAt)
-		FROM homepage p
-		RIGHT JOIN homepage_element c ON p.id = CASE WHEN c.parent = '_halamanBantuan' THEN NULL ELSE c.parent END
-		WHERE c.parent != '0'
-		ORDER BY c.id`,
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		Log(slog.LevelError, err.Error())
-		return
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-	var landingPages []*LandingPage
-	mapLandingPageNameIndexes := map[string]int{}
-	mapLandingPages := map[string]string{}
-	var maxCreatedAt, maxUpdatedAt time.Time
-	for rows.Next() {
-		var (
-			oldLandingPageName,
-			elementKey,
-			elementValue string
-			createdAt,
-			updatedAt *time.Time
-		)
-		if err = rows.Scan(
-			&oldLandingPageName,
-			&elementKey,
-			&elementValue,
-			&createdAt,
-			&updatedAt,
-		); err != nil {
-			Log(slog.LevelError, err.Error())
-			return
-		}
-		landingPageName := oldLandingPageName
-		switch oldLandingPageName {
-		case "hero":
-			landingPageName = "hero-slider"
-		case "fitur":
-			landingPageName = "feature"
-		case "uang-belanja-gratis":
-			landingPageName = "free-shopping"
-		case "komitmen":
-			landingPageName = "commitment"
-		case "pahlawan-dapur":
-			landingPageName = "kitchen-hero"
-		case "_halamanBantuan":
-			landingPageName = "faq"
-		}
-		if createdAt != nil {
-			maxCreatedAt = *createdAt
-		} else {
-			createdAt = &maxCreatedAt
-		}
-		if updatedAt != nil {
-			maxUpdatedAt = *updatedAt
-		} else {
-			updatedAt = &maxUpdatedAt
-		}
-		mapLandingPages[landingPageName] = oldLandingPageName
-		index, ok := mapLandingPageNameIndexes[landingPageName]
-		if !ok {
-			landingPages = append(
-				landingPages,
-				&LandingPage{
-					OldName:          mapLandingPages[landingPageName],
-					Name:             landingPageName,
-					CustomAttributes: map[string]string{},
-					CreatedAt:        createdAt,
-					UpdatedAt:        updatedAt,
-				},
-			)
-			index = len(landingPages) - 1
-			mapLandingPageNameIndexes[landingPageName] = index
-		}
-		landingPage := landingPages[index]
-		if strings.HasPrefix(elementValue, "{") {
-			landingPageItem := &LandingPageItem{
-				OldLandingPageName: landingPage.OldName,
-			}
-			switch landingPageName {
-			case "hero-slider":
-				var data LandingPageItemHero
-				if err = json.Unmarshal(String2ByteSlice(elementValue), &data); err == nil {
-					landingPageItem.Subject = data.Subject
-					landingPageItem.Body = data.Body
-					landingPageItem.Photo = data.Photo
-					landingPageItem.LinkText = data.LinkText
-					landingPageItem.LinkURL = data.LinkURL
-				}
-			case "feature", "why", "faq":
-				var data LandingPageItemData
-				if err = json.Unmarshal(String2ByteSlice(elementValue), &data); err == nil {
-					landingPageItem.Subject = data.Subject
-					landingPageItem.Body = data.Body
-					landingPageItem.Photo = data.Photo
-				}
-			}
-			landingPage.Items = append(landingPage.Items, landingPageItem)
-		} else {
-			var key string
-			switch elementKey {
-			case "_title":
-				key = "subject"
-			case "_buttonText":
-				key = "link_text"
-			case "_buttonLink":
-				key = "link_url"
-			case "_content":
-				key = "body"
-			case "_img":
-				key = "photo"
-			}
-			landingPage.CustomAttributes[key] = elementValue
-		}
-		landingPages[index] = landingPage
-	}
-	for i, landingPage := range landingPages {
-		if photo, ok := landingPage.CustomAttributes["photo"]; ok {
-			sb.Reset()
-			_, _ = fmt.Fprintf(&sb, "%s/landing-page-imgs/%s/%s", os.Getenv("PHOTO_DIRECTORY"), landingPage.OldName, photo)
-			src = sb.String()
-			sb.Reset()
-			_, _ = fmt.Fprintf(&sb, "%s.webp", uuid.NewV7().String())
-			photo = sb.String()
-			sb.Reset()
-			_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), photo)
-			dst = sb.String()
-			photos = append(photos, dst)
-			switch filepath.Ext(src) {
-			case ".jpg", ".jpeg":
-				if err = jpeg2webp(src, dst); err != nil {
-					Log(slog.LevelError, err.Error())
-					return
-				}
-			case ".png":
-				if err = png2webp(src, dst); err != nil {
-					Log(slog.LevelError, err.Error())
-					return
-				}
-			case ".webp":
-				if err = copyFile(src, dst); err != nil {
-					Log(slog.LevelError, err.Error())
-					return
-				}
-			}
-			landingPage.CustomAttributes["photo"] = photo
-		}
-		if err = tx.QueryRow(
-			ctx,
-			`INSERT INTO landing_pages (
-				record_status
-				, name
-				, custom_attributes
-				, created_by
-				, created_at
-				, updated_by
-				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7)
-			RETURNING id`,
-			RecordStatusActive,
-			landingPage.Name,
-			landingPage.CustomAttributes,
-			sellerID,
-			landingPage.CreatedAt,
-			sellerID,
-			landingPage.UpdatedAt,
-		).Scan(&landingPage.ID); err != nil {
-			Log(slog.LevelError, err.Error())
-			return
-		}
-		for j, landingPageItem := range landingPage.Items {
-			if landingPageItem.Photo != nil {
-				sb.Reset()
-				_, _ = fmt.Fprintf(&sb, "%s/landing-page-imgs/%s/%s", os.Getenv("PHOTO_DIRECTORY"), landingPage.OldName, *landingPageItem.Photo)
-				src = sb.String()
-				sb.Reset()
-				_, _ = fmt.Fprintf(&sb, "%s.webp", uuid.NewV7().String())
-				landingPageItem.Photo = new(sb.String())
-				sb.Reset()
-				_, _ = fmt.Fprintf(&sb, "%s/%s", os.Getenv("PHOTO_DIRECTORY"), *landingPageItem.Photo)
-				dst = sb.String()
-				photos = append(photos, dst)
-				switch filepath.Ext(src) {
-				case ".jpg", ".jpeg":
-					if err = jpeg2webp(src, dst); err != nil {
-						Log(slog.LevelError, err.Error())
-						return
-					}
-				case ".png":
-					if err = png2webp(src, dst); err != nil {
-						Log(slog.LevelError, err.Error())
-						return
-					}
-				case ".webp":
-					if err = copyFile(src, dst); err != nil {
-						Log(slog.LevelError, err.Error())
-						return
-					}
-				}
-			}
-			if _, err = tx.Exec(
-				ctx,
-				`INSERT INTO landing_page_items (
-					record_status
-					, landing_page_name
-					, subject
-					, body
-					, link_text
-					, link_url
-					, photo
-					, created_by
-					, created_at
-					, updated_by
-					, updated_at
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-				RecordStatusActive,
-				landingPage.Name,
-				landingPageItem.Subject,
-				landingPageItem.Body,
-				landingPageItem.LinkText,
-				landingPageItem.LinkURL,
-				landingPageItem.Photo,
-				sellerID,
-				landingPage.CreatedAt,
-				sellerID,
-				landingPage.UpdatedAt,
-			); err != nil {
-				Log(slog.LevelError, err.Error())
-				return
-			}
-			landingPage.Items[j] = landingPageItem
-		}
-		landingPages[i] = landingPage
 	}
 	// product_categories
 	rows, err = mysql.QueryContext(
@@ -1309,8 +803,7 @@ func main() {
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO product_categories (
-				company_id
-				, record_status
+				record_status
 				, name
 				, description
 				, photo
@@ -1318,9 +811,8 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			RETURNING id`,
-			companyID,
 			RecordStatusActive,
 			productCategory.Name,
 			productCategory.Description,
@@ -1457,8 +949,7 @@ func main() {
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO products (
-				company_id
-				, record_status
+				record_status
 				, product_category_id
 				, product_category_name
 				, product_type
@@ -1472,9 +963,8 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 			RETURNING id`,
-			companyID,
 			RecordStatusActive,
 			product.ProductCategoryID,
 			product.ProductCategoryName,
@@ -1579,8 +1069,7 @@ func main() {
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO product_variants (
-				company_id
-				, record_status
+				record_status
 				, product_category_id
 				, product_category_name
 				, product_id
@@ -1600,9 +1089,8 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 			RETURNING id`,
-			companyID,
 			RecordStatusActive,
 			productVariant.ProductCategoryID,
 			productVariant.ProductCategoryName,
@@ -1748,8 +1236,7 @@ func main() {
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO products (
-				company_id
-				, record_status
+				record_status
 				, product_category_id
 				, product_category_name
 				, product_type
@@ -1764,9 +1251,8 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 			RETURNING id`,
-			companyID,
 			RecordStatusActive,
 			product.ProductCategoryID,
 			product.ProductCategoryName,
@@ -1789,8 +1275,7 @@ func main() {
 		if _, err = tx.Exec(
 			ctx,
 			`INSERT INTO product_variants (
-				company_id
-				, record_status
+				record_status
 				, product_category_id
 				, product_category_name
 				, product_id
@@ -1810,8 +1295,7 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
-			companyID,
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
 			RecordStatusActive,
 			product.ProductCategoryID,
 			product.ProductCategoryName,
@@ -1910,8 +1394,7 @@ func main() {
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO banners (
-				company_id
-				, record_status
+				record_status
 				, name
 				, description
 				, photo
@@ -1920,9 +1403,8 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 			RETURNING id`,
-			companyID,
 			RecordStatusActive,
 			banner.Name,
 			banner.Description,
@@ -2091,8 +1573,7 @@ func main() {
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO recipes (
-				company_id
-				, record_status
+				record_status
 				, name
 				, photo
 				, description
@@ -2102,9 +1583,8 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			RETURNING id`,
-			companyID,
 			RecordStatusActive,
 			recipe.Name,
 			recipe.Photo,
@@ -2123,16 +1603,14 @@ func main() {
 			if _, err = tx.Exec(
 				ctx,
 				`INSERT INTO recipe_guides (
-					company_id
-					, record_status
+					record_status
 					, recipe_id
 					, instruction
 					, created_by
 					, created_at
 					, updated_by
 					, updated_at
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-				companyID,
+				) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 				RecordStatusActive,
 				recipe.ID,
 				recipeGuide.Instruction,
@@ -2153,8 +1631,7 @@ func main() {
 			if _, err = tx.Exec(
 				ctx,
 				`INSERT INTO recipe_items (
-					company_id
-					, record_status
+					record_status
 					, recipe_id
 					, product_id
 					, product_name
@@ -2166,8 +1643,7 @@ func main() {
 					, created_at
 					, updated_by
 					, updated_at
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-				companyID,
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
 				RecordStatusActive,
 				recipe.ID,
 				product.ID,
