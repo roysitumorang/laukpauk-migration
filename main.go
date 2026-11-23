@@ -560,6 +560,13 @@ func main() {
 		if buyer.IsVerified == 1 {
 			buyer.VerificationCode = nil
 			confirmedAt = &buyer.UpdatedAt
+		} else if buyer.VerificationCode != nil {
+			verificationCode, err := hashPassword(&sb, *buyer.VerificationCode)
+			if err != nil {
+				Log(slog.LevelError, err.Error())
+				return
+			}
+			buyer.VerificationCode = verificationCode
 		}
 		if buyer.Photo == "user-default.png" {
 			buyer.Photo = "buyer-default.png"
