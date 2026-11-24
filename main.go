@@ -42,10 +42,6 @@ const (
 	numbers                 = "0123456789"
 	lowerCasedAlphabets     = "123456789abcdefghijkmnopqrstuvwxyz"
 )
-const (
-	ProductTypeStandalone int = iota
-	ProductTypeBundled
-)
 
 type (
 	User struct {
@@ -97,7 +93,6 @@ type (
 		ProductCategoryID    uuid.UUID
 		ProductCategoryName  string
 		OldProductCategoryID int64
-		ProductType          int
 		Name,
 		Photo,
 		Description string
@@ -839,7 +834,6 @@ func main() {
 			Log(slog.LevelError, err.Error())
 			return
 		}
-		product.ProductType = ProductTypeStandalone
 		productName := strings.ToLower(product.Name)
 		if _, ok := mapProductNames[productName]; ok {
 			continue
@@ -911,7 +905,6 @@ func main() {
 				record_status
 				, product_category_id
 				, product_category_name
-				, product_type
 				, name
 				, photo
 				, description
@@ -922,12 +915,11 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 			RETURNING id`,
 			RecordStatusActive,
 			product.ProductCategoryID,
 			product.ProductCategoryName,
-			product.ProductType,
 			product.Name,
 			product.Photo,
 			product.Description,
@@ -1160,7 +1152,6 @@ func main() {
 			Log(slog.LevelError, err.Error())
 			return
 		}
-		product.ProductType = ProductTypeBundled
 		productName := strings.ToLower(product.Name)
 		if _, ok := mapProductNames[productName]; ok {
 			continue
@@ -1226,7 +1217,6 @@ func main() {
 				record_status
 				, product_category_id
 				, product_category_name
-				, product_type
 				, name
 				, photo
 				, description
@@ -1238,12 +1228,11 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 			RETURNING id`,
 			RecordStatusActive,
 			product.ProductCategoryID,
 			product.ProductCategoryName,
-			product.ProductType,
 			product.Name,
 			product.Photo,
 			product.Description,
