@@ -67,7 +67,6 @@ type (
 		ReferralCode,
 		Photo,
 		Name,
-		Address,
 		Username string
 		MobilePhone      string
 		OldReferrerID    *int64
@@ -443,7 +442,6 @@ func main() {
 			, kodeReferal
 			, foto
 			, nama
-			, alamat
 			, nomorHP
 			, username
 			, referencedBy
@@ -478,7 +476,6 @@ func main() {
 			&buyer.ReferralCode,
 			&buyer.Photo,
 			&buyer.Name,
-			&buyer.Address,
 			&buyer.MobilePhone,
 			&buyer.Username,
 			&buyer.OldReferrerID,
@@ -609,10 +606,9 @@ func main() {
 				, photo
 				, user_level
 				, referral_code
-				, address
 				, created_at
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 			RETURNING id`,
 			"buyer",
 			"active",
@@ -625,7 +621,6 @@ func main() {
 			buyer.Photo,
 			"buyer",
 			buyer.ReferralCode,
-			buyer.Address,
 			buyer.CreatedAt,
 			buyer.UpdatedAt,
 		).Scan(&buyer.ID); err != nil {
