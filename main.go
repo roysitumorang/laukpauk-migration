@@ -120,6 +120,7 @@ type (
 		ProductPhoto string
 		ProductReadyStock       bool
 		StockUnit               string
+		WeightInGrams           int64
 		BasePrice               int64
 		DiscountType            int
 		DiscountRate            int64
@@ -999,6 +1000,32 @@ func main() {
 			Log(slog.LevelError, err.Error())
 			return
 		}
+		switch productVariant.StockUnit {
+		case "Kg", "1Kg/Tanpa Jeroan", "kg", "1 Kg", "900-1000gr", "1 Kg Bersih", "1Kg/Pakai Jeroan", "1 kg", "1Kg":
+			productVariant.WeightInGrams = 1000
+		case "200 Gr":
+			productVariant.WeightInGrams = 200
+		case "200-300gr":
+			productVariant.WeightInGrams = 300
+		case "50 Gr":
+			productVariant.WeightInGrams = 50
+		case "1 Ons", "Ons":
+			productVariant.WeightInGrams = 100
+		case "15 Kg":
+			productVariant.WeightInGrams = 15000
+		case "5 Kg":
+			productVariant.WeightInGrams = 5000
+		case "1/4 kg", "1/4 Kg":
+			productVariant.WeightInGrams = 250
+		case "400-500gr", "500gr", "450-500gr", "1/2 Kg", "1/2kg", "500 Gr", "500GR", "1/2Kg":
+			productVariant.WeightInGrams = 500
+		case "30 Kg":
+			productVariant.WeightInGrams = 30000
+		case "400 Gr":
+			productVariant.WeightInGrams = 400
+		case "10 Kg":
+			productVariant.WeightInGrams = 10000
+		}
 		product, ok := mapProducts[productVariant.OldProductID]
 		if !ok {
 			continue
@@ -1035,6 +1062,7 @@ func main() {
 				, product_photo
 				, product_ready_stock
 				, stock_unit
+				, weight_in_grams
 				, base_price
 				, selling_price
 				, discount_type
@@ -1047,7 +1075,7 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
 			RETURNING id`,
 			RecordStatusActive,
 			productVariant.ProductCategoryID,
@@ -1057,6 +1085,7 @@ func main() {
 			productVariant.ProductPhoto,
 			productVariant.ProductReadyStock,
 			productVariant.StockUnit,
+			productVariant.WeightInGrams,
 			productVariant.BasePrice,
 			productVariant.BasePrice,
 			productVariant.DiscountType,
@@ -1241,6 +1270,7 @@ func main() {
 				, product_photo
 				, product_ready_stock
 				, stock_unit
+				, weight_in_grams
 				, base_price
 				, selling_price
 				, discount_type
@@ -1253,7 +1283,7 @@ func main() {
 				, created_at
 				, updated_by
 				, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
 			RecordStatusActive,
 			product.ProductCategoryID,
 			product.ProductCategoryName,
@@ -1262,6 +1292,7 @@ func main() {
 			product.Photo,
 			product.ReadyStock,
 			"paket",
+			0,
 			product.BasePrice,
 			product.BasePrice,
 			0,
