@@ -918,7 +918,7 @@ func main() {
 			product.Name,
 			product.Photo,
 			product.Description,
-			product.ReadyStock,
+			false,
 			product.Pinned,
 			product.Hits,
 			sellerID,
@@ -1031,13 +1031,16 @@ func main() {
 			mapProductVariantStockUnits[product.ID] = map[string]struct{}{}
 		}
 		mapProductVariantStockUnits[product.ID][productVariant.StockUnit] = struct{}{}
-		lowestSellingPrice, ok := mapProductLowestSellingPrices[product.ID]
-		if !ok || (lowestSellingPrice > 0 && productVariant.BasePrice < lowestSellingPrice) {
+		lowestSellingPrice := mapProductLowestSellingPrices[product.ID]
+		if lowestSellingPrice > 0 && productVariant.BasePrice > 0 {
+			lowestSellingPrice = min(lowestSellingPrice, productVariant.BasePrice)
+		} else if productVariant.BasePrice > 0 {
 			lowestSellingPrice = productVariant.BasePrice
 		}
 		mapProductLowestSellingPrices[product.ID] = lowestSellingPrice
 	}
 	for i, productVariant := range productVariants {
+		lowestSellingPrice := mapProductLowestSellingPrices[productVariant.ProductID]
 		if err = tx.QueryRow(
 			ctx,
 			`INSERT INTO product_variants (
@@ -1070,7 +1073,7 @@ func main() {
 			productVariant.ProductID,
 			productVariant.ProductName,
 			productVariant.ProductPhoto,
-			productVariant.ProductReadyStock,
+			lowestSellingPrice > 0,
 			productVariant.StockUnit,
 			productVariant.WeightInGrams,
 			productVariant.BasePrice,
@@ -1094,7 +1097,11 @@ func main() {
 	for productID, lowestSellingPrice := range mapProductLowestSellingPrices {
 		if _, err = tx.Exec(
 			ctx,
-			"UPDATE products SET lowest_selling_price = $1 WHERE id = $2",
+			`UPDATE products SET
+				ready_stock = $1
+				, lowest_selling_price = $2
+			WHERE id = $3`,
+			lowestSellingPrice > 0,
 			lowestSellingPrice,
 			productID,
 		); err != nil {
